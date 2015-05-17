@@ -192,3 +192,8 @@ int recv_public_cert(CONN *conn)
     fclose(fp);
     return 0;
 }
+
+char *buy_ecent(CONN *conn)
+{
+    return NULL;
+}

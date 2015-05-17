@@ -60,10 +60,8 @@ int main(int argc, char *argv[])
         unsigned char iv[128];
         char *buf = recv_msg(conn, &size);
         unsigned char *key = decrypt_key((unsigned char*)buf, size, &key_length);
-        *buf = 'a';
         // Received and decrypted key successfully
-        send_msg(conn, buf, 1, SUCCESS_RECEIPT);
-        free(buf);
+        send_msg(conn, NULL, 0, SUCCESS_RECEIPT);
         // Receive data
         buf = recv_msg(conn, &size);
         unsigned char msg[size];
@@ -78,7 +76,6 @@ int main(int argc, char *argv[])
         free(decrypted);
         arc4random_buf(iv, 128);
         unsigned char *encrypted = encrypt_data((unsigned char *)rev, new_size, &new_size, key, key_length, iv);
-        printf("New size is %i\n", new_size);
         buf = malloc(new_size + 128);
         memcpy(buf, encrypted, new_size);
         memcpy(buf + new_size, iv, 128);

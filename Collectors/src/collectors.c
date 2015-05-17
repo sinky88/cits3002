@@ -65,6 +65,7 @@ int main(int argc, char *argv[])
     send_msg(conn, buf, after_size + 128, SUCCESS_RECEIPT);
     free(buf);
     // Receive data
+    buf = recv_msg(conn, &size);
     unsigned char msg[size];
     memcpy(msg, buf, size);
     memcpy(iv, buf + size - 128, 128);

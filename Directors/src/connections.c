@@ -450,7 +450,7 @@ int send_msg(CONN *conn, char *buf, int size, char type)
         return -1;
     }
     if(header->msg_type != SUCCESS_RECEIPT) {
-        fprintf(stderr, "Error receiving message\n");
+        fprintf(stderr, "Sending error message\n");
         free(header);
         exit(EXIT_FAILURE);
         // bad stuff
