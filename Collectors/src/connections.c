@@ -82,6 +82,11 @@ int register_with_dir(CONN *conn, char service_type)
         return -1;
     }
     
+    if(header->msg_type == CLOSED_CON) {
+        fprintf(stderr, "Error connecting to director\n");
+        exit(1);
+    }
+    
     // Send service type
     if(SSL_write(conn->ssl, &service_type, sizeof(service_type)) <= 0) {
         perror("SSL write");
@@ -111,34 +116,40 @@ int register_with_dir(CONN *conn, char service_type)
     return 0;
 }
 
-int recv_msg(CONN *conn, unsigned char *buf)
+char *recv_msg(CONN *conn, int *size)
 {
     MSG_HEADER *header  = malloc(sizeof(MSG_HEADER));
     // Receive message header
     if(SSL_read(conn->ssl, header, sizeof(MSG_HEADER)) <= 0) {
         perror("SSL read");
         free(header);
-        return -1;
+        return NULL;
     }
+    printf("received message type is %i\n", header->msg_type);
+    printf("received message size is %i\n", header->size);
+    *size = header->size;
     // TODO add more error handling
-    if(header->msg_type == CLOSED_CON) {
-        fprintf(stderr, "Analyst closed connection\n");
-        free(header);
-        return -1;
+    if(header->msg_type != SUCCESS_RECEIPT) {
+        fprintf(stderr, "Error receiving message\n");
+        exit(EXIT_FAILURE);
+        // bad stuff
     }
-    buf = malloc(header->size);
+    if(header->size == 0) {
+        return NULL;
+    }
+    char *buf = malloc(*size);
     // Receive data
-    if(SSL_read(conn->ssl, buf, header->size) <= 0) {
+    if(SSL_read(conn->ssl, buf, *size) <= 0) {
         perror("SSL read");
         free(header);
         free(buf);
-        return -1;
+        return NULL;
     }
     
-    return 0;
+    return buf;
 }
 
-int send_msg(CONN *conn, unsigned char *buf, int size, char type)
+int send_msg(CONN *conn, char *buf, int size, char type)
 {
     MSG_HEADER *header  = malloc(sizeof(MSG_HEADER));
     header->msg_type = type;
@@ -149,9 +160,12 @@ int send_msg(CONN *conn, unsigned char *buf, int size, char type)
         free(header);
         return -1;
     }
+    if(header->size == 0) {
+        return 0;
+    }
     // Send data
-    if(SSL_read(conn->ssl, buf, header->size) <= 0) {
-        perror("SSL read");
+    if(SSL_write(conn->ssl, buf, header->size) <= 0) {
+        perror("SSL write");
         return -1;
     }
     

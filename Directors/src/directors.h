@@ -105,6 +105,10 @@ extern  int             register_client(CONN *conn, INFO *info);
 extern  int             serve_client(CONN *conn, INFO *info);
 extern  char            check_communication(CONN *conn, int my_id, int their_id);
 extern  int             handle_new_connection(CONN *conn, int listen_socket);
+extern  char            *recv_com(int sd, int *size, char *type);
+extern  int             send_com(int sd, char *buf, int size, char type);
+extern  char            *recv_msg(CONN *conn, int sd, int *size, char *type);
+extern  int             send_msg(CONN *conn, char *buf, int size, char type);
 extern  int             create_domain_socket(char *sock_str);
 extern  int             connect_domain_socket(char *sock_str);
 

@@ -45,7 +45,6 @@ int main(int argc, char *argv[])
         fprintf(stderr, "Unable to register with director\n");
         exit(EXIT_FAILURE);
     }
-    
     recv_public_cert(conn);
     // THIS IS ALL TEMPORARY - WILL FIND FUNCTIONS FOR THIS
     int keylength;
@@ -54,13 +53,14 @@ int main(int argc, char *argv[])
     MSG_HEADER *header = malloc(sizeof(MSG_HEADER));
     header->msg_type = SUCCESS_RECEIPT;
     header->size = 256;
+    
     SSL_write(conn->ssl, header, sizeof(MSG_HEADER));
+
     SSL_write(conn->ssl, encrypted, 256);
+
     // Our turn to do a read, deal with this later
     SSL_read(conn->ssl, header, sizeof(MSG_HEADER));
-    char *buf = malloc(header->size);
-    SSL_read(conn->ssl, buf, header->size);
-    free(buf);
+    char *buf;
     
     int after_size;
     unsigned char iv[128];

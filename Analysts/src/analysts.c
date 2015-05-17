@@ -56,14 +56,12 @@ int main(int argc, char *argv[])
         send_public_cert(conn);
         
         int size = 0;
-        unsigned char *buf = recv_msg(conn, &size);
         int key_length = 0;
-        unsigned char *key = decrypt_key(buf, size, &key_length);
+        char *buf = recv_msg(conn, &size);
+        unsigned char *key = decrypt_key((unsigned char*)buf, size, &key_length);
+        *buf = 'a';
         // Received and decrypted key successfully
-        header->msg_type = SUCCESS_RECEIPT;
-        header->size = sizeof("Nothing");
-        SSL_write(conn->ssl, header, sizeof(MSG_HEADER));
-        SSL_write(conn->ssl, "Nothing", header->size);
+        send_msg(conn, buf, 1, SUCCESS_RECEIPT);
         // Receive data
         SSL_read(conn->ssl, header, sizeof(MSG_HEADER));
         buf = malloc(header->size);

@@ -62,8 +62,8 @@ extern  int             init_conn(CONN *conn);
 extern  int             load_certs(CONN *conn);
 extern  CONN            *establish_connection(char *addr, char *port);
 extern  int             register_with_dir(CONN *conn, char service_type);
-extern  unsigned char   *recv_msg(CONN *conn, int *size);
-extern  int             send_msg(CONN *conn, unsigned char *buf, int size, char type);
+extern  char   *recv_msg(CONN *conn, int *size);
+extern  int             send_msg(CONN *conn, char *buf, int size, char type);
 extern  int             send_public_cert(CONN *conn);
 
 // Defined in encryptions

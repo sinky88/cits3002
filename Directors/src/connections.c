@@ -315,46 +315,17 @@ int serve_client(CONN *conn, INFO *info)
         int sd = connect_domain_socket(sock_str);
         while(true) {
             // Recv from analyst process
-            recv(sd, header, sizeof(MSG_HEADER), 0);
-            // Check if we still have a connection
-            if(header->msg_type == CLOSED_CON) {
-                if(SSL_write(conn->ssl, header, sizeof(MSG_HEADER)) <= 0) {
-                    perror("SSL write");
-                }
-                printf("Lost connection to analyst\n");
-                SSL_shutdown(conn->ssl);
-                exit(1);
-            }
-            char *buf = malloc(header->size);
-            recv(sd, buf, header->size, 0);
+            int msg_size = 0;
+            char msg_type = 0;
+            char *buf = recv_com(sd, &msg_size, &msg_type);
             // Send from SSL connection to collector
-            if(SSL_write(conn->ssl, header, sizeof(MSG_HEADER)) <= 0) {
-                perror("SSL write");
-                break;
-            }
-            if(SSL_write(conn->ssl, buf, header->size) <= 0) {
-                perror("SSL write");
-                break;
-            }
+            send_msg(conn, buf, msg_size, msg_type);
+            free(buf);
             // Receive from SSL connection to collector
-            if(SSL_read(conn->ssl, header, sizeof(MSG_HEADER)) <= 0) {
-                perror("SSL read");
-                break;
-            }
-            buf = malloc(header->size);
-            if(header->size > 0) {
-                if(SSL_read(conn->ssl, buf, header->size) <= 0) {
-                    perror("SSL read");
-                    break;
-                }
-            }
-            if(header->msg_type == CLOSED_CON) {
-                printf("Collector closed connection\n");
-                exit(1);
-            }
+            buf = recv_msg(conn, sd, &msg_size, &msg_type);
             // Send to analyst proccess
-            send(sd, header, sizeof(MSG_HEADER), 0);
-            send(sd, buf, header->size, 0);
+            send_com(sd, buf, msg_size, msg_type);
+            free(buf);
         }
     }
     // ANALYST HANDLING PROCESS
@@ -383,39 +354,17 @@ int serve_client(CONN *conn, INFO *info)
         }
         while(true) {
             // Recv from SSL connection to analyst
-            if(SSL_read(conn->ssl, header, sizeof(MSG_HEADER)) <= 0 ) {
-                perror("SSL_read");
-                break;
-            }
-            if(header->msg_type == CLOSED_CON) {
-                printf("Analyst closed connection\n");
-                break;
-            }
-            char *buf = malloc(header->size);
-            if(SSL_read(conn->ssl, buf, header->size) <= 0) {
-                perror("SSL_read");
-                break;
-            }
+            int msg_size = 0;
+            char msg_type = 0;
+            char *buf = recv_msg(conn, sd, &msg_size, &msg_type);
             // Send to collector process
-            send(sd, header, sizeof(MSG_HEADER), 0);
-            send(sd, buf, header->size, 0);
+            send_com(sd, buf, msg_size, msg_type);
+            free(buf);
             // Recv from collector process
-            recv(sd, header, sizeof(MSG_HEADER), 0);
-            buf = malloc(header->size);
-            recv(sd, buf, header->size, 0);
+            buf = recv_com(sd, &msg_size, &msg_type);
             // Send from SSL connection to analyst
-            if(SSL_write(conn->ssl, header, sizeof(MSG_HEADER)) <= 0) {
-                perror("SSL write");
-                break;
-            }
-            if(header->size == 0) {
-                printf("Collector closed connection\n");
-                break;
-            }
-            if(SSL_write(conn->ssl, buf, header->size) <= 0) {
-                perror("SSL write");
-                break;
-            }
+            send_msg(conn, buf, msg_size, msg_type);
+            free(buf);
         }
         // If we got here we lost SSL connection to analyst
         header->msg_type = CLOSED_CON;
@@ -424,6 +373,99 @@ int serve_client(CONN *conn, INFO *info)
     return 0;
 }
 
+char *recv_com(int sd, int *size, char *type)
+{
+    MSG_HEADER *header  = malloc(sizeof(MSG_HEADER));
+    // Recv from analyst process
+    recv(sd, header, sizeof(MSG_HEADER), 0);
+    char *buf = malloc(header->size);
+    *type = header->msg_type;
+    *size = header->size;
+    if(header->size <= 0) {
+        return buf;
+    }
+    recv(sd, buf, *size, 0);
+    return buf;
+}
+
+int send_com(int sd, char *buf, int size, char type)
+{
+    MSG_HEADER *header  = malloc(sizeof(MSG_HEADER));
+    header->msg_type = type;
+    header->size = size;
+    // Send to collector process
+    send(sd, header, sizeof(MSG_HEADER), 0);
+    if(header->size > 0) {
+        send(sd, buf, header->size, 0);
+    }
+    return 0;
+}
+
+
+char *recv_msg(CONN *conn, int sd, int *size, char *type)
+{
+    MSG_HEADER *header  = malloc(sizeof(MSG_HEADER));
+    // Receive message header
+    if(SSL_read(conn->ssl, header, sizeof(MSG_HEADER)) <= 0) {
+        perror("SSL read");
+        free(header);
+        send_com(sd, NULL, 0, CLOSED_CON);
+        exit(EXIT_FAILURE);
+    }
+    *size = header->size;
+    *type = header->msg_type;
+    // TODO add more error handling
+    if(header->msg_type != SUCCESS_RECEIPT) {
+        fprintf(stderr, "Error receiving message\n");
+        send_com(sd, NULL, 0, header->msg_type);
+        free(header);
+        exit(EXIT_FAILURE);
+        // bad stuff
+    }
+    char *buf = malloc(*size);
+    if(header->size == 0) {
+        return buf;
+    }
+    // Receive data
+    if(SSL_read(conn->ssl, buf, *size) <= 0) {
+        perror("SSL read");
+        free(header);
+        free(buf);
+        send_com(sd, NULL, 0, CLOSED_CON);
+        return NULL;
+    }
+    
+    return buf;
+}
+
+int send_msg(CONN *conn, char *buf, int size, char type)
+{
+    MSG_HEADER *header  = malloc(sizeof(MSG_HEADER));
+    header->msg_type = type;
+    header->size = size;
+    // Send message header
+    if(SSL_write(conn->ssl, header, sizeof(MSG_HEADER)) <= 0) {
+        perror("SSL write");
+        free(header);
+        return -1;
+    }
+    if(header->msg_type != SUCCESS_RECEIPT) {
+        fprintf(stderr, "Error receiving message\n");
+        free(header);
+        exit(EXIT_FAILURE);
+        // bad stuff
+    }
+    if(header->size == 0) {
+        return 0;
+    }
+    // Send data
+    if(SSL_write(conn->ssl, buf, header->size) <= 0) {
+        perror("SSL write");
+        return -1;
+    }
+    
+    return 0;
+}
 
 // Function to set up domain socket
 

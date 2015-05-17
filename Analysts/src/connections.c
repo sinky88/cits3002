@@ -99,23 +99,29 @@ int register_with_dir(CONN *conn, char service_type)
     return 0;
 }
 
-unsigned char *recv_msg(CONN *conn, int *size)
+char *recv_msg(CONN *conn, int *size)
 {
     MSG_HEADER *header  = malloc(sizeof(MSG_HEADER));
     // Receive message header
     if(SSL_read(conn->ssl, header, sizeof(MSG_HEADER)) <= 0) {
         perror("SSL read");
         free(header);
-        return NULL;
+        exit(EXIT_FAILURE);
     }
     *size = header->size;
+    printf("received type %i\n", header->msg_type);
+
     // TODO add more error handling
     if(header->msg_type != SUCCESS_RECEIPT) {
+        printf("%i\n", header->msg_type);
         fprintf(stderr, "Error receiving message\n");
         exit(EXIT_FAILURE);
         // bad stuff
     }
-    unsigned char *buf = malloc(*size);
+    if(header->size == 0) {
+        return NULL;
+    }
+    char *buf = malloc(*size);
     // Receive data
     if(SSL_read(conn->ssl, buf, *size) <= 0) {
         perror("SSL read");
@@ -127,7 +133,7 @@ unsigned char *recv_msg(CONN *conn, int *size)
     return buf;
 }
 
-int send_msg(CONN *conn, unsigned char *buf, int size, char type)
+int send_msg(CONN *conn, char *buf, int size, char type)
 {
     MSG_HEADER *header  = malloc(sizeof(MSG_HEADER));
     header->msg_type = type;
@@ -138,13 +144,12 @@ int send_msg(CONN *conn, unsigned char *buf, int size, char type)
         free(header);
         return -1;
     }
-    // TODO add more error handling
-    if(header->msg_type != SUCCESS_RECEIPT) {
-        // bad stuff
+    if(header->size == 0) {
+        return 0;
     }
     // Send data
-    if(SSL_read(conn->ssl, buf, header->size) <= 0) {
-        perror("SSL read");
+    if(SSL_write(conn->ssl, buf, header->size) <= 0) {
+        perror("SSL write");
         return -1;
     }
     
@@ -163,6 +168,7 @@ int send_public_cert(CONN *conn)
     fread(buf, size, 1, fp);
     fclose(fp);
     header->size = size;
+    header->msg_type  = SUCCESS_RECEIPT;
     SSL_write(conn->ssl, header, sizeof(MSG_HEADER));
     SSL_write(conn->ssl, buf, size);
     return 0;
