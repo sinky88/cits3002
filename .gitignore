@@ -1,0 +1,15 @@
+
+*.o
+
+Directors/src/lists.c.bak.c
+
+Collectors/temp/cert.pem
+
+Directors/directors
+
+Collectors/collectors
+
+Analysts/analysts
+
+
+
