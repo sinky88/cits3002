@@ -57,23 +57,32 @@ int main(int argc, char *argv[])
         
         int size = 0;
         int key_length = 0;
+        unsigned char iv[128];
         char *buf = recv_msg(conn, &size);
         unsigned char *key = decrypt_key((unsigned char*)buf, size, &key_length);
         *buf = 'a';
         // Received and decrypted key successfully
         send_msg(conn, buf, 1, SUCCESS_RECEIPT);
+        free(buf);
         // Receive data
-        SSL_read(conn->ssl, header, sizeof(MSG_HEADER));
-        buf = malloc(header->size);
-        unsigned char iv[128];
-        SSL_read(conn->ssl, buf, header->size);
-        unsigned char msg[header->size];
-        memcpy(msg, buf, header->size);
-        memcpy(iv, buf + header->size - 128, 128);
+        buf = recv_msg(conn, &size);
+        unsigned char msg[size];
+        memcpy(msg, buf, size);
+        memcpy(iv, buf + size - 128, 128);
+        free(buf);
         int new_size = 0;
-        unsigned char *decrypted = decrypt_data(msg, header->size, &new_size, key, key_length, iv);
+        unsigned char *decrypted = decrypt_data(msg, size, &new_size, key, key_length, iv);
         free(header);
         printf("%s\n", decrypted);
+        char *rev = reverse_str((char *)decrypted);
+        free(decrypted);
+        arc4random_buf(iv, 128);
+        unsigned char *encrypted = encrypt_data((unsigned char *)rev, new_size, &new_size, key, key_length, iv);
+        printf("New size is %i\n", new_size);
+        buf = malloc(new_size + 128);
+        memcpy(buf, encrypted, new_size);
+        memcpy(buf + new_size, iv, 128);
+        send_msg(conn, buf, new_size + 128, SUCCESS_RECEIPT);
         SSL_free(conn->ssl);
         free(conn);
 

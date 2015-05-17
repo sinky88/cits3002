@@ -47,31 +47,32 @@ int main(int argc, char *argv[])
     }
     recv_public_cert(conn);
     // THIS IS ALL TEMPORARY - WILL FIND FUNCTIONS FOR THIS
-    int keylength;
-    unsigned char *key = gen_rand_key(&keylength);
-    unsigned char *encrypted = encrypt_key(key, keylength);
-    MSG_HEADER *header = malloc(sizeof(MSG_HEADER));
-    header->msg_type = SUCCESS_RECEIPT;
-    header->size = 256;
-    
-    SSL_write(conn->ssl, header, sizeof(MSG_HEADER));
-
-    SSL_write(conn->ssl, encrypted, 256);
-
-    // Our turn to do a read, deal with this later
-    SSL_read(conn->ssl, header, sizeof(MSG_HEADER));
-    char *buf;
-    
+    int key_length;
+    unsigned char *key = gen_rand_key(&key_length);
+    unsigned char *encrypted = encrypt_key(key, key_length);
+    send_msg(conn, (char *)encrypted, 256, SUCCESS_RECEIPT);
+    free(encrypted);
     int after_size;
+    int size;
+    // Do a read because it's our turn
+    char *buf = recv_msg(conn, &after_size);
     unsigned char iv[128];
     arc4random_buf(iv, 128);
-    unsigned char *msg = encrypt_data(message, message_size, &after_size, key, keylength, iv);
-    header->size = after_size + 128;
-    buf = malloc(header->size);
-    memcpy(buf, msg, after_size);
+    encrypted = encrypt_data(message, message_size, &after_size, key, key_length, iv);
+    buf = malloc(after_size + 128);
+    memcpy(buf, encrypted, after_size);
     memcpy(buf + after_size, iv, 128);
-    SSL_write(conn->ssl, header, sizeof(MSG_HEADER));
-    SSL_write(conn->ssl, buf, header->size);
+    send_msg(conn, buf, after_size + 128, SUCCESS_RECEIPT);
+    free(buf);
+    // Receive data
+    unsigned char msg[size];
+    memcpy(msg, buf, size);
+    memcpy(iv, buf + size - 128, 128);
+    int new_size = 0;
+    unsigned char *decrypted = decrypt_data(msg, size, &new_size, key, key_length, iv);
+    printf("%s\n", decrypted);
+    SSL_free(conn->ssl);
+    free(conn);
     return result;
 }
 

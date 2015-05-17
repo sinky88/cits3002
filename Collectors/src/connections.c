@@ -125,8 +125,6 @@ char *recv_msg(CONN *conn, int *size)
         free(header);
         return NULL;
     }
-    printf("received message type is %i\n", header->msg_type);
-    printf("received message size is %i\n", header->size);
     *size = header->size;
     // TODO add more error handling
     if(header->msg_type != SUCCESS_RECEIPT) {
