@@ -63,8 +63,6 @@ CONN *wait_for_connection(char *port)
     // Make a socket for listening
     int listen_socket = socket(res->ai_family, res->ai_socktype, res->ai_protocol);
     
-    free(res);
-    
     int yes=1;
     
     // Make sure port is available
@@ -100,6 +98,8 @@ CONN *wait_for_connection(char *port)
     // Accept() loop
     handle_new_connection(conn, listen_socket);
     
+    free(res);
+
     return conn;
 }
 
@@ -213,22 +213,11 @@ int handle_new_connection(CONN *conn, int listen_socket)
 
 int register_client(CONN *conn, INFO *info)
 {
-    // Receive handshake
-    MSG_HEADER *header;
-    header = malloc(sizeof(MSG_HEADER));
-    if(SSL_read(conn->ssl, header, sizeof(MSG_HEADER)) <= 0) {
-        perror("SSL read");
-        exit(EXIT_FAILURE);
-    }
+    int size = 0;
+    char msg_type = 0;
+    char *service_type = recv_msg(conn, -1, &size, &msg_type);
     // Check what kind of connection we have
-    if(header->msg_type == NEW_ANALYST) {
-        // Allocate enough space to receive message
-        char *service_type = malloc(sizeof(char));
-        // Read message
-        if(SSL_read(conn->ssl, service_type, sizeof(char)) <= 0) {
-            perror("SSL read");
-            return -1;
-        }
+    if(msg_type == NEW_ANALYST) {
         printf("Received new analyst entry information\n");
         info->service_type = *service_type;
         info->type = ANALYST;
@@ -240,35 +229,17 @@ int register_client(CONN *conn, INFO *info)
         conn->domain_socket = create_domain_socket(sock_str);
         strcpy(info->sock_str, sock_str);
         // Send confirmation of success
-        header->msg_type = SUCCESS_RECEIPT;
-        if(SSL_write(conn->ssl, header, sizeof(MSG_HEADER)) <= 0) {
-            fprintf(stderr, "Error sending receipt\n");
-            return -1;
-        }
+        send_msg(conn, NULL, 0, SUCCESS_RECEIPT);
         free(service_type);
     }
-    if(header->msg_type == NEW_COLLECTOR) {
-        // Allocate enough space to receive message
-        char *service_type = malloc(sizeof(char));
-
-        // Read message
-        if(SSL_read(conn->ssl, service_type, sizeof(char)) <= 0) {
-            perror("SSL read");
-            return -1;
-        }
+    if(msg_type == NEW_COLLECTOR) {
         printf("Received new collector entry information\n");
         info->service_type = *service_type;
         info->type = COLLECTOR;
         // Send confirmation of success
-        header->msg_type = SUCCESS_RECEIPT;
-        if(SSL_write(conn->ssl, header, sizeof(MSG_HEADER)) <= 0) {
-            fprintf(stderr, "Error sending receipt\n");
-            return -1;
-        }
+        send_msg(conn, NULL, 0, SUCCESS_RECEIPT);
         free(service_type);
     }
-    // Free memory
-    free(header);
     return 0;
 }
 
@@ -290,23 +261,20 @@ int serve_client(CONN *conn, INFO *info)
     if(info->type == COLLECTOR) {
         char outcome[2];
         recv(conn_socket, &outcome, 2, 0);
-        MSG_HEADER *header = malloc(sizeof(MSG_HEADER));
-        header->size = 0;
         if(strcmp(outcome, FOUND) != 0) {
             printf("No analysts found for service\n");
             // SSL write to collector to inform of failure
-            header->msg_type = NO_ANALYST_FOUND;
-            if(SSL_write(conn->ssl, header, sizeof(MSG_HEADER)) <= 0) {
-                perror("SSL write");
+            char receipt = NO_ANALYST_FOUND;
+            if(send_msg(conn, &receipt, sizeof(char), SUCCESS_RECEIPT) < 0) {
+                exit(EXIT_FAILURE);
             }
-            free(header);
-            exit(1);
+            exit(EXIT_FAILURE);
         }
         if(strcmp(outcome, FOUND) == 0) {
             // SSL write to collector to inform of success
-            header->msg_type = ANALYST_FOUND;
-            if(SSL_write(conn->ssl, header, sizeof(MSG_HEADER)) <= 0) {
-                perror("SSL write");
+            char receipt = ANALYST_FOUND;
+            if(send_msg(conn, &receipt, sizeof(char), SUCCESS_RECEIPT) < 0) {
+                exit(EXIT_FAILURE);
             }
         }
         char sock_str[ID_LEN];
@@ -343,11 +311,9 @@ int serve_client(CONN *conn, INFO *info)
         }
         close(conn->domain_socket);
         // Send message to analyst to say we have successfully connected
-        MSG_HEADER *header = malloc(sizeof(MSG_HEADER));
-        header->msg_type = COLLECTOR_FOUND;
-        if(SSL_write(conn->ssl, header, sizeof(MSG_HEADER)) <= 0) {
-            perror("SSL write");
-            // Tell the collector we lost connection
+        char receipt = COLLECTOR_FOUND;
+        if(send_msg(conn, &receipt, sizeof(char), SUCCESS_RECEIPT) < 0) {
+            MSG_HEADER *header = malloc(sizeof(MSG_HEADER));
             header->msg_type = CLOSED_CON;
             send(sd, header, sizeof(MSG_HEADER), 0);
             exit(1);
@@ -367,6 +333,7 @@ int serve_client(CONN *conn, INFO *info)
             free(buf);
         }
         // If we got here we lost SSL connection to analyst
+        MSG_HEADER *header = malloc(sizeof(MSG_HEADER));
         header->msg_type = CLOSED_CON;
         send(sd, header, sizeof(MSG_HEADER), 0);
     }
@@ -404,34 +371,41 @@ int send_com(int sd, char *buf, int size, char type)
 
 char *recv_msg(CONN *conn, int sd, int *size, char *type)
 {
-    MSG_HEADER *header  = malloc(sizeof(MSG_HEADER));
+    int header_size = sizeof(uint32_t) + sizeof(char);
+    char *header  = malloc(sizeof(header_size));
     // Receive message header
-    if(SSL_read(conn->ssl, header, sizeof(MSG_HEADER)) <= 0) {
+    if(SSL_read(conn->ssl, header, header_size) <= 0) {
         perror("SSL read");
         free(header);
-        send_com(sd, NULL, 0, CLOSED_CON);
         exit(EXIT_FAILURE);
     }
-    *size = header->size;
-    *type = header->msg_type;
+    char msg_type = 0;
+    uint32_t network_size = 0;
+    // Unpack integer and char
+    memcpy(&network_size, header, sizeof(uint32_t));
+    memcpy(&msg_type, header + sizeof(uint32_t), sizeof(char));
+    // Make sure integer is in system byte order
+    *size = ntohl(network_size);
+    *type = msg_type;
     // TODO add more error handling
-    if(header->msg_type != SUCCESS_RECEIPT) {
+    if(msg_type != SUCCESS_RECEIPT && msg_type != NEW_COLLECTOR && msg_type != NEW_ANALYST) {
         fprintf(stderr, "Error receiving message\n");
-        send_com(sd, NULL, 0, header->msg_type);
-        free(header);
         exit(EXIT_FAILURE);
         // bad stuff
     }
-    char *buf = malloc(*size);
-    if(header->size == 0) {
-        return buf;
+    if(*size == 0) {
+        return NULL;
     }
+    char *buf = malloc(*size);
     // Receive data
     if(SSL_read(conn->ssl, buf, *size) <= 0) {
         perror("SSL read");
         free(header);
         free(buf);
-        send_com(sd, NULL, 0, CLOSED_CON);
+        // Let the connected process know of the error
+        if(sd != -1) {
+            send_com(sd, NULL, 0, CLOSED_CON);
+        }
         return NULL;
     }
     
@@ -440,26 +414,24 @@ char *recv_msg(CONN *conn, int sd, int *size, char *type)
 
 int send_msg(CONN *conn, char *buf, int size, char type)
 {
-    MSG_HEADER *header  = malloc(sizeof(MSG_HEADER));
-    header->msg_type = type;
-    header->size = size;
+    int header_size = sizeof(uint32_t) + sizeof(char);
+    // Create header for message
+    char *header = malloc(header_size);
+    // Make sure integer is in network byte order
+    uint32_t network_size = htonl(size);
+    memcpy(header, &network_size, sizeof(uint32_t));
+    memcpy(header + sizeof(uint32_t), &type, sizeof(char));
     // Send message header
-    if(SSL_write(conn->ssl, header, sizeof(MSG_HEADER)) <= 0) {
+    if(SSL_write(conn->ssl, header, header_size) <= 0) {
         perror("SSL write");
         free(header);
         return -1;
     }
-    if(header->msg_type != SUCCESS_RECEIPT) {
-        fprintf(stderr, "Sending error message\n");
-        free(header);
-        exit(EXIT_FAILURE);
-        // bad stuff
-    }
-    if(header->size == 0) {
+    if(size == 0) {
         return 0;
     }
     // Send data
-    if(SSL_write(conn->ssl, buf, header->size) <= 0) {
+    if(SSL_write(conn->ssl, buf, size) <= 0) {
         perror("SSL write");
         return -1;
     }

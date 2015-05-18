@@ -70,69 +70,49 @@ CONN *establish_connection(char *addr, char *port)
 
 int register_with_dir(CONN *conn, char service_type)
 {
-    // Set up handshake info
-    MSG_HEADER *header;
-    header = malloc(sizeof(MSG_HEADER));
-    header->msg_type = NEW_COLLECTOR;
-    header->size = 0;
-    
-    // Send handshake
-    if(SSL_write(conn->ssl, header, sizeof(MSG_HEADER)) <= 0) {
-        perror("SSL write");
-        return -1;
-    }
-    
-    if(header->msg_type == CLOSED_CON) {
-        fprintf(stderr, "Error connecting to director\n");
-        exit(1);
-    }
-    
-    // Send service type
-    if(SSL_write(conn->ssl, &service_type, sizeof(service_type)) <= 0) {
-        perror("SSL write");
-        return -1;
-    }
-    
-    // Receive message confirmation
-    if(SSL_read(conn->ssl, header, sizeof(MSG_HEADER)) <= 0) {
-        perror("SSL read");
-        return -1;
-    }
-
-    if(header->msg_type != SUCCESS_RECEIPT) {
-        fprintf(stderr, "Error connecting to director\n");
-        exit(1);
-    }
+    // Send handshake info
+    send_msg(conn, &service_type, sizeof(char), NEW_COLLECTOR);
+    int size = 0;
+    // Receive confirmation
+    recv_msg(conn, &size);
     
     // Receive confirmation of available analyst
-    if(SSL_read(conn->ssl, header, sizeof(MSG_HEADER)) <= 0) {
-        perror("SSL read");
-    }
-    if(header->msg_type == NO_ANALYST_FOUND) {
+    char *receipt = recv_msg(conn, &size);
+    if(*receipt == NO_ANALYST_FOUND) {
         fprintf(stderr, "No analysts found\n");
-        free(header);
-        return -1;
+        free(receipt);
+        exit(EXIT_FAILURE);
     }
+    free(receipt);
     return 0;
 }
 
 char *recv_msg(CONN *conn, int *size)
 {
-    MSG_HEADER *header  = malloc(sizeof(MSG_HEADER));
+    int header_size = sizeof(uint32_t) + sizeof(char);
+    char *header  = malloc(sizeof(header_size));
     // Receive message header
-    if(SSL_read(conn->ssl, header, sizeof(MSG_HEADER)) <= 0) {
+    if(SSL_read(conn->ssl, header, header_size) <= 0) {
         perror("SSL read");
         free(header);
-        return NULL;
+        exit(EXIT_FAILURE);
     }
-    *size = header->size;
+    char msg_type = 0;
+    uint32_t network_size = 0;
+    // Unpack integer and char
+    memcpy(&network_size, header, sizeof(uint32_t));
+    memcpy(&msg_type, header + sizeof(uint32_t), sizeof(char));
+    // Make sure integer is in system byte order
+    *size = ntohl(network_size);
+    
     // TODO add more error handling
-    if(header->msg_type != SUCCESS_RECEIPT) {
+    if(msg_type != SUCCESS_RECEIPT) {
+        printf("%i\n", msg_type);
         fprintf(stderr, "Error receiving message\n");
         exit(EXIT_FAILURE);
         // bad stuff
     }
-    if(header->size == 0) {
+    if(*size == 0) {
         return NULL;
     }
     char *buf = malloc(*size);
@@ -141,28 +121,32 @@ char *recv_msg(CONN *conn, int *size)
         perror("SSL read");
         free(header);
         free(buf);
-        return NULL;
+        exit(EXIT_FAILURE);
     }
-    
     return buf;
 }
 
 int send_msg(CONN *conn, char *buf, int size, char type)
 {
-    MSG_HEADER *header  = malloc(sizeof(MSG_HEADER));
-    header->msg_type = type;
-    header->size = size;
+    int header_size = sizeof(uint32_t) + sizeof(char);
+    // Create header for message
+    char *header = malloc(header_size);
+    // Make sure integer is in network byte order
+    uint32_t network_size = htonl(size);
+    // Pack integer and char
+    memcpy(header, &network_size, sizeof(uint32_t));
+    memcpy(header + sizeof(uint32_t), &type, sizeof(char));
     // Send message header
-    if(SSL_write(conn->ssl, header, sizeof(MSG_HEADER)) <= 0) {
+    if(SSL_write(conn->ssl, header, header_size) <= 0) {
         perror("SSL write");
         free(header);
         return -1;
     }
-    if(header->size == 0) {
+    if(size == 0) {
         return 0;
     }
     // Send data
-    if(SSL_write(conn->ssl, buf, header->size) <= 0) {
+    if(SSL_write(conn->ssl, buf, size) <= 0) {
         perror("SSL write");
         return -1;
     }
@@ -170,24 +154,13 @@ int send_msg(CONN *conn, char *buf, int size, char type)
     return 0;
 }
 
+
 int recv_public_cert(CONN *conn)
 {
-    MSG_HEADER *header  = malloc(sizeof(MSG_HEADER));
     FILE *fp = fopen(ANA_CERT, "w");
-    if(SSL_read(conn->ssl, header, sizeof(MSG_HEADER)) <= 0) {
-        perror("SSL read");
-        fclose(fp);
-        exit(1);
-    }
-    if(header->msg_type == CLOSED_CON) {
-        fprintf(stderr, "Analyst closed connection\n");
-        fclose(fp);
-        free(header);
-        exit(1);
-    }
-    char *buf = malloc(header->size);
-    SSL_read(conn->ssl, buf, header->size);
-    fwrite(buf, header->size, 1, fp);
+    int size = 0;
+    char *buf = recv_msg(conn, &size);
+    fwrite(buf, size, 1, fp);
     free(buf);
     fclose(fp);
     return 0;

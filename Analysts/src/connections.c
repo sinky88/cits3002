@@ -70,53 +70,41 @@ CONN *establish_connection(char *addr, char *port)
 
 int register_with_dir(CONN *conn, char service_type)
 {
-    // Set up handshake info
-    MSG_HEADER *header;
-    header = malloc(sizeof(MSG_HEADER));
-    header->msg_type = NEW_ANALYST;
-    header->size = 0;
-    if(SSL_write(conn->ssl, header, sizeof(MSG_HEADER)) <= 0) {
-        perror("SSL write");
-        return -1;
-    }
-    
-    // Send service type
-    if(SSL_write(conn->ssl, &service_type, sizeof(service_type)) <= 0) {
-        perror("SSL write");
-        return -1;
-    }
-
-    // Receive message confirmation
-    if(SSL_read(conn->ssl, header, sizeof(MSG_HEADER)) <= 0) {
-        perror("SSL read");
-        return -1;
-    }
-    
-    if(header->msg_type != SUCCESS_RECEIPT) {
-        fprintf(stderr, "Error connecting to director\n");
-    }
+    // Send handshake info
+    send_msg(conn, &service_type, sizeof(char), NEW_ANALYST);
+    int size = 0;
+    // Receive confirmation
+    recv_msg(conn, &size);
     
     return 0;
 }
 
 char *recv_msg(CONN *conn, int *size)
 {
-    MSG_HEADER *header  = malloc(sizeof(MSG_HEADER));
+    int header_size = sizeof(uint32_t) + sizeof(char);
+    char *header  = malloc(sizeof(header_size));
     // Receive message header
-    if(SSL_read(conn->ssl, header, sizeof(MSG_HEADER)) <= 0) {
+    if(SSL_read(conn->ssl, header, header_size) <= 0) {
         perror("SSL read");
         free(header);
         exit(EXIT_FAILURE);
     }
-    *size = header->size;
+    char msg_type = 0;
+    uint32_t network_size = 0;
+    // Unpack integer and char
+    memcpy(&network_size, header, sizeof(uint32_t));
+    memcpy(&msg_type, header + sizeof(uint32_t), sizeof(char));
+    // Make sure integer is in system byte order
+    *size = ntohl(network_size);
+
     // TODO add more error handling
-    if(header->msg_type != SUCCESS_RECEIPT) {
-        printf("%i\n", header->msg_type);
+    if(msg_type != SUCCESS_RECEIPT) {
+        printf("%i\n", msg_type);
         fprintf(stderr, "Error receiving message\n");
         exit(EXIT_FAILURE);
         // bad stuff
     }
-    if(header->size == 0) {
+    if(*size == 0) {
         return NULL;
     }
     char *buf = malloc(*size);
@@ -125,28 +113,32 @@ char *recv_msg(CONN *conn, int *size)
         perror("SSL read");
         free(header);
         free(buf);
-        return NULL;
-    }
-    
+        exit(EXIT_FAILURE);
+    }    
     return buf;
 }
 
 int send_msg(CONN *conn, char *buf, int size, char type)
 {
-    MSG_HEADER *header  = malloc(sizeof(MSG_HEADER));
-    header->msg_type = type;
-    header->size = size;
+    int header_size = sizeof(uint32_t) + sizeof(char);
+    // Create header for message
+    char *header = malloc(header_size);
+    // Make sure integer is in network byte order
+    uint32_t network_size = htonl(size);
+    // Pack integer and char
+    memcpy(header, &network_size, sizeof(uint32_t));
+    memcpy(header + sizeof(uint32_t), &type, sizeof(char));
     // Send message header
-    if(SSL_write(conn->ssl, header, sizeof(MSG_HEADER)) <= 0) {
+    if(SSL_write(conn->ssl, header, header_size) <= 0) {
         perror("SSL write");
         free(header);
         return -1;
     }
-    if(header->size == 0) {
+    if(size == 0) {
         return 0;
     }
     // Send data
-    if(SSL_write(conn->ssl, buf, header->size) <= 0) {
+    if(SSL_write(conn->ssl, buf, size) <= 0) {
         perror("SSL write");
         return -1;
     }
@@ -157,7 +149,6 @@ int send_msg(CONN *conn, char *buf, int size, char type)
 
 int send_public_cert(CONN *conn)
 {
-    MSG_HEADER *header = malloc(sizeof(MSG_HEADER));
     FILE *fp = fopen(ANA_CERT, "r");
     fseek(fp, 0, SEEK_END);
     int size = ftell(fp);
@@ -165,10 +156,7 @@ int send_public_cert(CONN *conn)
     char *buf = malloc(size);
     fread(buf, size, 1, fp);
     fclose(fp);
-    header->size = size;
-    header->msg_type  = SUCCESS_RECEIPT;
-    SSL_write(conn->ssl, header, sizeof(MSG_HEADER));
-    SSL_write(conn->ssl, buf, size);
+    send_msg(conn, buf, size, SUCCESS_RECEIPT);
     return 0;
 }
 

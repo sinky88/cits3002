@@ -52,18 +52,21 @@ int main(int argc, char *argv[])
         }
         
         // THIS IS ALL TEMPORARY - WILL FIND FUNCTIONS FOR THIS
-        MSG_HEADER *header = malloc(sizeof(MSG_HEADER));
-        SSL_read(conn->ssl, header, sizeof(MSG_HEADER));
-        if(header->msg_type != COLLECTOR_FOUND) {
+        int size = 0;
+        // Wait for confirmation of collector
+        char *receipt = recv_msg(conn, &size);
+        if(*receipt != COLLECTOR_FOUND) {
             fprintf(stderr, "Error connecting to collector\n");
-            free(header);
+            free(receipt);
             SSL_free(conn->ssl);
             free(conn);
+            // TEMP
+            exit(EXIT_FAILURE);
             continue;
         }
+        free(receipt);
         send_public_cert(conn);
         
-        int size = 0;
         int key_length = 0;
         unsigned char iv[128];
         char *buf = recv_msg(conn, &size);
@@ -78,7 +81,6 @@ int main(int argc, char *argv[])
         free(buf);
         int new_size = 0;
         unsigned char *decrypted = decrypt_data(msg, size, &new_size, key, key_length, iv);
-        free(header);
         printf("%s\n", decrypted);
         int send_size = 0;
         char *result;
