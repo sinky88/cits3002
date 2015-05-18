@@ -43,6 +43,8 @@
 #define COLLECTOR_FOUND  6
 #define CLOSED_CON       7
 #define ANALYST_FOUND    8
+#define SUCCESS_CLOSE    9
+
 
 
 //

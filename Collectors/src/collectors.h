@@ -18,7 +18,7 @@
 #include <openssl/rsa.h>
 #include <openssl/pem.h>
 
-#define OPT_STRING ""
+#define OPT_STRING "t:"
 #define DEFAULT_SERVICE 'a'
 #define DEFAULT_PORT "7777"
 #define BACKLOG 5
@@ -46,6 +46,7 @@
 #define COLLECTOR_FOUND  6
 #define CLOSED_CON       7
 #define ANALYST_FOUND    8
+#define SUCCESS_CLOSE    9
 
 // Structures as part of protocol
 

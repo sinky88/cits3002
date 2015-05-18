@@ -13,19 +13,13 @@ int main(int argc, char *argv[])
     int result  = 0;
     char *diraddr;
     char *dirport;
+    char service_type = DEFAULT_SERVICE;
     unsigned char *message;
     int message_size;
-    // Check we have enough arguments
-    if(argc < 4) {
-        fprintf(stderr, "Usage: %s address port message\n", argv[0]);
-        exit(EXIT_FAILURE);
-    }
-    // Set director port and address
-    diraddr = argv[1];
-    dirport = argv[2];
+   
+
     
-    message_size = strlen(argv[3]) + 1;
-    message = (unsigned char*) argv[3];
+
     
     // No options right now
     int opt = 0;
@@ -34,14 +28,35 @@ int main(int argc, char *argv[])
     {
         switch(opt)
         {
+            case 't':
+                if(optarg != NULL) {
+                    service_type = optarg[0];
+                } else {
+                    fprintf(stderr, "Usage: %s [-t service] address port message\n", argv[0]);
+                    exit(EXIT_FAILURE);
+                }
+                break;
+            default: fprintf(stderr, "Usage: %s [-t service] address port message\n", argv[0]);
+                exit(EXIT_FAILURE);
         }
     }
+    // Check we have enough arguments
+    if(argc - optind < 3) {
+        fprintf(stderr, "Usage: %s [-t service] address port message\n", argv[0]);
+        exit(EXIT_FAILURE);
+    }
+    
+    // Set director port and address
+    diraddr = argv[optind];
+    dirport = argv[optind + 1];
+    message_size = strlen(argv[optind + 2]) + 1;
+    message = (unsigned char*) argv[optind + 2];
     
     // Establish connection with a director
     CONN *conn = establish_connection(diraddr, dirport);
     
     // Register with director
-    if(register_with_dir(conn, DEFAULT_SERVICE) != 0) {
+    if(register_with_dir(conn, service_type) != 0) {
         fprintf(stderr, "Unable to register with director\n");
         exit(EXIT_FAILURE);
     }
@@ -72,6 +87,7 @@ int main(int argc, char *argv[])
     int new_size = 0;
     unsigned char *decrypted = decrypt_data(msg, size, &new_size, key, key_length, iv);
     printf("%s\n", decrypted);
+    send_msg(conn, NULL, 0, SUCCESS_CLOSE);
     SSL_free(conn->ssl);
     free(conn);
     return result;

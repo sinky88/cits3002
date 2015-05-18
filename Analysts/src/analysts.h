@@ -17,7 +17,7 @@
 #include <openssl/ssl.h>
 #include <openssl/err.h>
 
-#define OPT_STRING ""
+#define OPT_STRING "t:"
 #define PORT 6666
 #define DEFAULT_PORT "6666"
 #define DEFAULT_SERVICE 'a'
@@ -40,6 +40,8 @@
 #define COLLECTOR_FOUND  6
 #define CLOSED_CON       7
 #define ANALYST_FOUND    8
+#define SUCCESS_CLOSE    9
+
 
 // Structures as part of protocol
 
@@ -73,3 +75,5 @@ extern  unsigned char   *decrypt_data(unsigned char *buf, int size, int *after_s
 
 // Defined in analysts.c
 extern char             *reverse_str(char *str);
+extern char             *find_mean(char *str, int *send_size);
+

@@ -79,7 +79,7 @@ int register_with_dir(CONN *conn, char service_type)
         perror("SSL write");
         return -1;
     }
-
+    
     // Send service type
     if(SSL_write(conn->ssl, &service_type, sizeof(service_type)) <= 0) {
         perror("SSL write");
