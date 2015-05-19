@@ -60,8 +60,6 @@ int main(int argc, char *argv[])
             free(receipt);
             SSL_free(conn->ssl);
             free(conn);
-            // TEMP
-            exit(EXIT_FAILURE);
             continue;
         }
         free(receipt);
@@ -99,6 +97,7 @@ int main(int argc, char *argv[])
         memcpy(buf, encrypted, new_size);
         memcpy(buf + new_size, iv, 128);
         send_msg(conn, buf, new_size + 128, SUCCESS_RECEIPT);
+        SSL_shutdown(conn->ssl);
         SSL_free(conn->ssl);
         free(conn);
 
