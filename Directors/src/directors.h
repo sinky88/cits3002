@@ -22,11 +22,11 @@
 #define OPT_STRING "p:"
 #define DEFAULT_PORT "65434"
 #define BACKLOG 5
-#define CA_CERT "ca.pem"
 #define DIR_CERT "certs/cert.pem"
 #define DIR_KEY "private/key.pem"
-#define MAX_CLIENTS 50
 #define TEMP_DIR "temp/"
+#define TIMEOUT 10
+#define BUFSIZE 256
 
 //
 // MACROS for protocol
@@ -75,49 +75,36 @@ typedef struct {
 // Structures for this software
 
 typedef struct {
-    char                    type; // Analyst or collector
-    char                    service_type; // Type of service offered/required
-    char                    sock_str[ID_LEN]; // Socket string
-} INFO;
-
-typedef struct {
-    BIO                     *bio;
     SSL                     *ssl;
     SSL_CTX                 *ctx;
-    int                     sd;
-    int                     client_id;
-    char                    sock_str[ID_LEN];
-    int                     domain_socket;
 } CONN;
 
 typedef struct {
-    char                    msg;
-    char                    sock_str[ID_LEN]; // Socket string
-} MSG;
+    char                    type; // This should only be Analyst
+    char                    service_type; // Type of service offered/required
+    int                     client_id;  // ID of Analyst
+    SSL                     *a_ssl;     // Connection to the analyst
+} INFO;
 
-
-
+typedef struct node {
+    INFO *info;
+    struct node * next;
+} node_t;
 
 // Defined in connections.c
 extern  int             init_conn(CONN *conn);
 extern  int             load_certs(CONN *conn);
-extern  CONN            *wait_for_connection(char *port);
-extern  int             handle_ipc(CONN *conn);
-extern  int             register_client(CONN *conn, INFO *info);
-extern  int             serve_client(CONN *conn, INFO *info);
-extern  char            check_communication(CONN *conn, int my_id, int their_id);
-extern  int             handle_new_connection(CONN *conn, int listen_socket);
-extern  char            *recv_com(int sd, int *size, char *type);
-extern  int             send_com(int sd, char *buf, int size, char type);
-extern  char            *recv_msg(CONN *conn, int sd, int *size, char *type);
-extern  int             send_msg(CONN *conn, char *buf, int size, char type);
-extern  int             create_domain_socket(char *sock_str);
-extern  int             connect_domain_socket(char *sock_str);
-
+extern  int             *wait_for_connection(char *port);
+extern  int             register_client(CONN *conn, node_t *client_list, int client_id);
+extern  int             service_collector(CONN *conn, INFO *analyst);
+extern  char            *recv_msg(void *ssl, int *size, char *type);
+extern  int             send_msg(void *ssl, char *buf, int size, char type);
 
 
 // Defined in lists.c
-extern  int             add_entry(INFO **info, INFO *info_entry, int *info_count);
-extern  char            *check_match(INFO **info, INFO *collector, int *info_count);
-extern  int             remove_entry(INFO **info, char *sock_str, int *info_count);
+extern  node_t          *create_list(INFO *info);
+extern  int             *add_entry(node_t *head, INFO *info);
+extern  INFO            *check_match(node_t *head, char service_type);
+extern  int             remove_entry(node_t *head, int client_id);
+
 

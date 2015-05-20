@@ -104,7 +104,6 @@ char *recv_msg(CONN *conn, int *size)
     memcpy(&msg_type, header + sizeof(uint32_t), sizeof(char));
     // Make sure integer is in system byte order
     *size = ntohl(network_size);
-    
     // TODO add more error handling
     if(msg_type != SUCCESS_RECEIPT) {
         printf("%i\n", msg_type);
@@ -157,12 +156,12 @@ int send_msg(CONN *conn, char *buf, int size, char type)
 
 int recv_public_cert(CONN *conn)
 {
-    FILE *fp = fopen(ANA_CERT, "w");
     int size = 0;
     char *buf = recv_msg(conn, &size);
+    FILE *fp = fopen(ANA_CERT, "w");
     fwrite(buf, size, 1, fp);
-    free(buf);
     fclose(fp);
+    free(buf);
     return 0;
 }
 

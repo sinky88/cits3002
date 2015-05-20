@@ -41,10 +41,10 @@ int main(int argc, char *argv[])
     // Set director port and address
     diraddr = argv[optind];
     dirport = argv[optind + 1];
+    
     while(true) {
         // Establish connection with a director
         CONN *conn = establish_connection(diraddr, dirport);
-        
         // Register with director
         if(register_with_dir(conn, service_type) != 0) {
             fprintf(stderr, "Error registering with director\n");
@@ -100,8 +100,8 @@ int main(int argc, char *argv[])
         SSL_shutdown(conn->ssl);
         SSL_free(conn->ssl);
         free(conn);
-
     }
+    
     return result;
 }
 
@@ -125,7 +125,7 @@ char *find_mean(char *str, int *send_size)
         int index = 0;
         char *number = NULL;
         printf("Current number is %s\n", number);
-
+        
         while(*(str + index) != ':' && *(str + index) != '\0') {
             number = realloc(number, index + 1);
             number[index] = str[index];

@@ -3,7 +3,7 @@ HEADERS =  $(PROJECT).h
 OBJ 	=  src/directors.o src/connections.o src/lists.o
 
 C99	=  cc -std=c99
-CFLAGS	=  -Wall -Wno-deprecated-declarations -pedantic -Werror
+CFLAGS	=  -g -Wall -Wno-deprecated-declarations -pedantic -Werror
 LIBS	= -lssl -lcrypto 
 
 $(PROJECT) : $(OBJ)

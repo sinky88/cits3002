@@ -31,22 +31,7 @@ int main(int argc, char *argv[])
         }
     }
     // Wait for connection from analyst or collector
-    CONN *conn = wait_for_connection(port);
-    // Set up info structure
-    INFO *info = malloc(sizeof(INFO));
-    // Wait for message from client
-    if(register_client(conn, info) != 0) {
-        fprintf(stderr, "Error registering client\n");
-    }
-    // Serve connected analyst or collector
-    serve_client(conn, info);
-    
-    if(SSL_shutdown(conn->ssl) != 0) {
-        perror("shutting down");
-    }
-
-    SSL_free(conn->ssl);
-    free(conn);
+    wait_for_connection(port);
     return result;
 }
 
