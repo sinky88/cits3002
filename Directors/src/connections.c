@@ -77,24 +77,25 @@ int *wait_for_connection(char *port)
         exit(EXIT_FAILURE);
     }
     printf("Listening for connection on port %s\n", port);
-
+    
     
     // Set timeout values
     struct timeval *timeout = malloc(sizeof(struct timeval));
     
-    timeout->tv_sec  = TIMEOUT;
-    timeout->tv_usec =  0;
+    timeout->tv_sec  = 0;
+    timeout->tv_usec =  TIMEOUT;
     
     // Create list for connected clients
     INFO *info = malloc(sizeof(INFO));
     info->client_id = -1;
-    node_t *client_list = create_list(info);
+    node_t *analyst_list = create_list(info);
+    node_t *collector_list = create_list(info);
     
     int client_id = 0;
     
     // Main loop
     while(true) {
-
+        
         fd_set read_fds;
         
         FD_ZERO(&read_fds);
@@ -134,40 +135,48 @@ int *wait_for_connection(char *port)
                 }
                 printf("SSL handshake complete\n");
                 // Register new client
-                register_client(conn, client_list, client_id);
+                register_client(conn, analyst_list, collector_list, &client_id);
             }
         }
+        service_collectors(collector_list);
     }
     return 0;
 }
 
-int register_client(CONN *conn, node_t *client_list, int client_id)
+int register_client(CONN *conn, node_t *analyst_list, node_t *collector_list, int *client_id)
 {
     int size = 0;
     char msg_type = 0;
+    bool error = false;
     
-    char *service_type = recv_msg(conn->ssl, &size, &msg_type);
+    char *service_type = recv_msg(conn->ssl, &size, &msg_type, &error);
+    if(error == true) {
+        msg_type = CLOSED_CON;
+    }
     // Check what kind of connection we have
     if(msg_type == NEW_ANALYST) {
         INFO *analyst = malloc(sizeof(INFO));
         printf("Received new analyst entry information\n");
         analyst->service_type = *service_type;
         analyst->type = ANALYST;
-        analyst->client_id = client_id++;
+        analyst->client_id = (*client_id)++;
         analyst->a_ssl = conn->ssl;
         
         
-        printf("Adding entry %c\n", analyst->service_type);
-        add_entry(client_list, analyst);
+        printf("Adding entry of type %c\n", analyst->service_type);
+        add_entry(analyst_list, analyst);
         send_msg(conn->ssl, NULL, 0, SUCCESS_RECEIPT);
     }
     if(msg_type == NEW_COLLECTOR) {
         printf("Received new collector entry information\n");
-        INFO *analyst = check_match(client_list, *service_type);
+        INFO *analyst = check_match(analyst_list, *service_type);
         if(analyst == NULL) {
+            // Write to say we received connection
+            send_msg(conn->ssl, NULL, 0, SUCCESS_RECEIPT);
             printf("No analysts found for service\n");
+            char receipt = NO_ANALYST_FOUND;
             // SSL write to collector to inform of failure
-            send_msg(conn->ssl, NULL, 0, NO_ANALYST_FOUND);
+            send_msg(conn->ssl, &receipt, 1, SUCCESS_RECEIPT);
             SSL_shutdown(conn->ssl);
             SSL_free(conn->ssl);
             free(conn->ctx);
@@ -175,7 +184,18 @@ int register_client(CONN *conn, node_t *client_list, int client_id)
             return -1;
         }
         // Remove analyst from list
-        remove_entry(client_list, analyst->client_id);
+        remove_entry(analyst_list, analyst->client_id);
+        
+        // Add collector to list
+        INFO *collector = malloc(sizeof(INFO));
+        collector->service_type = *service_type;
+        collector->type = COLLECTOR;
+        collector->client_id = *client_id++;
+        collector->c_ssl = conn->ssl;
+        collector->a_ssl = analyst->a_ssl;
+        
+        
+        add_entry(collector_list, collector);
         
         // Send success receipt of connection
         send_msg(conn->ssl, NULL, 0, SUCCESS_RECEIPT);
@@ -186,51 +206,76 @@ int register_client(CONN *conn, node_t *client_list, int client_id)
         receipt = COLLECTOR_FOUND;
         send_msg(analyst->a_ssl, &receipt, sizeof(char), SUCCESS_RECEIPT);
         printf("Found analyst for service\n");
-        service_collector(conn, analyst);
     }
     return 0;
 }
 
-int service_collector(CONN *conn, INFO *analyst)
+int service_collectors(node_t *collector_list)
 {
-    while(true) {
+    // Keep copy of original list
+    node_t *collector_list_orig = collector_list;
+    // Get a collector from list and move the list along one position
+    INFO *collector = get_next_entry(&collector_list);
+    // Keep going as long as we have a collector to service
+    while(collector != NULL) {
         int msg_size = 0;
         char msg_type = 0;
+        bool error = false;
         char *buf = NULL;
         // Recv from SSL connection to analyst
-        buf = recv_msg(analyst->a_ssl, &msg_size, &msg_type);
-        if(msg_type == SUCCESS_CLOSE) {
-            send_msg(conn->ssl, NULL, 0, msg_type);
+        buf = recv_msg(collector->a_ssl, &msg_size, &msg_type, &error);
+        if(error == true) {
+            fprintf(stderr, "Lost connection to analyst\n");
+            msg_type = CLOSED_CON;
+        }
+        if(error_handler(msg_type) != 0) {
+            send_msg(collector->c_ssl, NULL, 0, msg_type);
+            remove_entry(collector_list_orig, collector->client_id);
             break;
         }
-
+        
         // Send over SSL connection to collector
-        if(send_msg(conn->ssl, buf, msg_size, msg_type) < 0) {
+        int status;
+        if((status = send_msg(collector->c_ssl, buf, msg_size, msg_type)) != 0) {
+            // Error sending over ssl, inform analyst and remove collector from list
             free(buf);
+            send_msg(collector->a_ssl, NULL, 0, status);
+            remove_entry(collector_list_orig, collector->client_id);
             break;
         }
         free(buf);
         
         // Recv from SSL connection to collector
-        buf = recv_msg(conn->ssl, &msg_size, &msg_type);
-        if(msg_type == SUCCESS_CLOSE) {
-            send_msg(analyst->a_ssl, NULL, 0, msg_type);
+        buf = recv_msg(collector->c_ssl, &msg_size, &msg_type, &error);
+        if(error == true) {
+            fprintf(stderr, "Lost connection to collector\n");
+            msg_type = CLOSED_CON;
+        }
+        if(error_handler(msg_type) != 0) {
+            send_msg(collector->a_ssl, NULL, 0, msg_type);
+            remove_entry(collector_list_orig, collector->client_id);
             break;
         }
-        printf("Size is %i\n", msg_size);
+        // printf("Size is %i\n", msg_size);
         // Send over SSL connection to analyst
-        send_msg(analyst->a_ssl, buf, msg_size, msg_type);
+        if((status = send_msg(collector->a_ssl, buf, msg_size, msg_type)) != 0) {
+            free(buf);
+            send_msg(collector->c_ssl, NULL, 0, status);
+            remove_entry(collector_list_orig, collector->client_id);
+        }
         free(buf);
+        collector = get_next_entry(&collector_list);
     }
     return 0;
 }
 
-char *recv_msg(void *ssl, int *size, char *type)
+char *recv_msg(void *ssl, int *size, char *type, bool *error)
 {
     int header_size = sizeof(uint32_t) + sizeof(char);
     char *header = malloc(header_size);
     // Receive message header
     if(SSL_read(ssl, header, header_size) <= 0) {
+        *error = true;
         perror("SSL read");
         free(header);
         return NULL;
@@ -243,11 +288,9 @@ char *recv_msg(void *ssl, int *size, char *type)
     // Make sure integer is in system byte order
     *size = ntohl(network_size);
     *type = msg_type;
-    // TODO add more error handling
-    if(msg_type != SUCCESS_RECEIPT && msg_type != NEW_COLLECTOR && msg_type != NEW_ANALYST) {
-        fprintf(stderr, "Error receiving message\n");
+    // Handle error messages
+    if(error_handler(msg_type) != 0) {
         return NULL;
-        // bad stuff
     }
     // If size is zero then no data to receive
     if(*size == 0) {
@@ -256,6 +299,7 @@ char *recv_msg(void *ssl, int *size, char *type)
     char *buf = malloc(*size);
     // Receive data
     if(SSL_read(ssl, buf, *size) <= 0) {
+        *error = true;
         perror("SSL read");
         free(header);
         free(buf);
@@ -267,7 +311,6 @@ char *recv_msg(void *ssl, int *size, char *type)
 
 int send_msg(void *ssl, char *buf, int size, char type)
 {
-
     int header_size = sizeof(uint32_t) + sizeof(char);
     // Create header for message
     char *header = malloc(header_size);
@@ -279,7 +322,7 @@ int send_msg(void *ssl, char *buf, int size, char type)
     if(SSL_write(ssl, header, header_size) <= 0) {
         perror("SSL write");
         free(header);
-        return -1;
+        return CLOSED_CON;
     }
     // If size is zero then no data to send
     if(size == 0) {
@@ -289,8 +332,21 @@ int send_msg(void *ssl, char *buf, int size, char type)
     if(SSL_write(ssl, buf, size) <= 0) {
         perror("SSL write");
         free(header);
-        return -1;
+        return CLOSED_CON;
     }
     free(header);
+    return 0;
+}
+
+int error_handler(char msg_type)
+{
+    switch(msg_type){
+        case ERROR_RECEIPT  :
+            return -1;
+        case CLOSED_CON  :
+            return -1;
+        case SUCCESS_CLOSE  :
+            return 1;
+    }
     return 0;
 }

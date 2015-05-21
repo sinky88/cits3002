@@ -77,6 +77,7 @@ int register_with_dir(CONN *conn, char service_type)
     recv_msg(conn, &size);
     
     // Receive confirmation of available analyst
+
     char *receipt = recv_msg(conn, &size);
     if(*receipt == NO_ANALYST_FOUND) {
         fprintf(stderr, "No analysts found\n");
@@ -104,12 +105,10 @@ char *recv_msg(CONN *conn, int *size)
     memcpy(&msg_type, header + sizeof(uint32_t), sizeof(char));
     // Make sure integer is in system byte order
     *size = ntohl(network_size);
-    // TODO add more error handling
-    if(msg_type != SUCCESS_RECEIPT) {
-        printf("%i\n", msg_type);
-        fprintf(stderr, "Error receiving message\n");
+    // Error handling
+    if(error_handler(msg_type) != 0) {
+        SSL_shutdown(conn->ssl);
         exit(EXIT_FAILURE);
-        // bad stuff
     }
     if(*size == 0) {
         return NULL;
@@ -132,24 +131,25 @@ int send_msg(CONN *conn, char *buf, int size, char type)
     char *header = malloc(header_size);
     // Make sure integer is in network byte order
     uint32_t network_size = htonl(size);
-    // Pack integer and char
     memcpy(header, &network_size, sizeof(uint32_t));
     memcpy(header + sizeof(uint32_t), &type, sizeof(char));
     // Send message header
     if(SSL_write(conn->ssl, header, header_size) <= 0) {
         perror("SSL write");
         free(header);
-        return -1;
+        return CLOSED_CON;
     }
+    // If size is zero then no data to send
     if(size == 0) {
         return 0;
     }
     // Send data
     if(SSL_write(conn->ssl, buf, size) <= 0) {
         perror("SSL write");
-        return -1;
+        free(header);
+        return CLOSED_CON;
     }
-    
+    free(header);
     return 0;
 }
 
@@ -157,11 +157,37 @@ int send_msg(CONN *conn, char *buf, int size, char type)
 int recv_public_cert(CONN *conn)
 {
     int size = 0;
+    // Receive cert
     char *buf = recv_msg(conn, &size);
+    // Open cert file for writing
     FILE *fp = fopen(ANA_CERT, "w");
+    if(fp == NULL) {
+        perror("Opening certificate");
+        send_msg(conn, NULL, 0, CERT_ERROR);
+        SSL_shutdown(conn->ssl);
+        exit(EXIT_FAILURE);
+    }
     fwrite(buf, size, 1, fp);
     fclose(fp);
     free(buf);
+    return 0;
+}
+
+int error_handler(char msg_type)
+{
+    switch(msg_type){
+        case ERROR_RECEIPT  :
+            fprintf(stderr, "Analyst reports error receiving last message\n");
+            return -1;
+        case CLOSED_CON  :
+            fprintf(stderr, "Connection to director lost\n");
+            return -1;
+        case CERT_ERROR :
+            fprintf(stderr, "Analyst reports error with certificate\n");
+            return -1;
+        case SUCCESS_CLOSE  :
+            return 1;
+    }
     return 0;
 }
 

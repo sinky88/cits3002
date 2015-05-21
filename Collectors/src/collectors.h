@@ -47,6 +47,7 @@
 #define CLOSED_CON       7
 #define ANALYST_FOUND    8
 #define SUCCESS_CLOSE    9
+#define CERT_ERROR      10
 
 // Structures as part of protocol
 
@@ -71,6 +72,8 @@ extern  int             register_with_dir(CONN *conn, char service_type);
 extern  char            *recv_msg(CONN *conn, int *size);
 extern  int             send_msg(CONN *conn, char *buf, int size, char type);
 extern  int             recv_public_cert(CONN *conn);
+extern  int             error_handler(char msg_type);
+
 
 // Defined in encryptions.c
 extern  unsigned char   *gen_rand_key(int *keylength);

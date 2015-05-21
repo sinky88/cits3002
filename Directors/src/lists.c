@@ -33,7 +33,6 @@ int *add_entry(node_t *head, INFO *info)
 INFO *check_match(node_t *head, char service_type)
 {
     node_t *current = head;
-    printf("Service type is %i\n", current->info->service_type);
     while(current != NULL) {
         if(current->info->service_type == service_type) {
             return current->info;
@@ -43,6 +42,19 @@ INFO *check_match(node_t *head, char service_type)
     return NULL;
 }
 
+INFO *get_next_entry(node_t **head)
+{
+    if((*head) == NULL) {
+        return NULL;
+    }
+    if((*head)->next == NULL) {
+        return NULL;
+    }
+    (*head) = (*head)->next;
+    INFO *next = (*head)->info;
+    head++;
+    return next;
+}
 
 int remove_entry(node_t *head, int client_id)
 {
@@ -52,7 +64,6 @@ int remove_entry(node_t *head, int client_id)
         return -1;
     }
     if(current->info->client_id == client_id) {
-        printf("Found entry to remove!\n");
         node_t *next_node = head->next;
         free(head);
         head = next_node;
@@ -60,7 +71,6 @@ int remove_entry(node_t *head, int client_id)
     }
     while(current->next != NULL) {
         if(current->next->info->client_id == client_id) {
-            printf("Found entry to remove!\n");
             break;
         }
         current = current->next;
@@ -71,50 +81,3 @@ int remove_entry(node_t *head, int client_id)
     
     return 0;
 }
-
-/*
-int add_entry(INFO **info, INFO *info_entry, int *info_count)
-{
-    info = info + (*info_count);
-    (*info) = info_entry;
-    info = info - (*info_count);
-    *info_count = *info_count + 1;
-    return 0;
-}
-
-INFO *check_match(INFO **info, char service_type, int *info_count)
-{
-    for(int i = 0; i < (*info_count); i ++){
-        if(service_type == (*info)->service_type) {
-            printf("Found match of service type %c\n",(*info)->service_type);
-            return *info;
-        }
-        info++;
-    }
-    info = info - (*info_count);
-    return NULL;
-}
-
-void remove_entry(INFO **info, int client_id, int *info_count)
-{
-    int found_index = 0;
-    for(int i = 0; i < (*info_count); i ++) {
-        if(client_id == (*info)->client_id) {
-            free(*info);
-            found_index = i;
-            break;
-        }
-        info ++;
-    }
-    if(found_index > 0) {
-        for(int i = found_index; i < (*info_count); i++) {
-            (*info) = *(info + 1);
-            info++;
-        }
-    }
-    (*info_count)--;
-    info = info - (*info_count);
-    printf("Removed analyst from list\n");
-    SSL_write((*info)->a_ssl, NULL, 0);
-}
-*/

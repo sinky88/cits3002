@@ -42,6 +42,7 @@ int main(int argc, char *argv[])
     diraddr = argv[optind];
     dirport = argv[optind + 1];
     
+    // Main loop
     while(true) {
         // Establish connection with a director
         CONN *conn = establish_connection(diraddr, dirport);
@@ -50,8 +51,6 @@ int main(int argc, char *argv[])
             fprintf(stderr, "Error registering with director\n");
             exit(EXIT_FAILURE);
         }
-        
-        // THIS IS ALL TEMPORARY - WILL FIND FUNCTIONS FOR THIS
         int size = 0;
         // Wait for confirmation of collector
         char *receipt = recv_msg(conn, &size);
@@ -69,17 +68,31 @@ int main(int argc, char *argv[])
         unsigned char iv[128];
         char *buf = recv_msg(conn, &size);
         unsigned char *key = decrypt_key((unsigned char*)buf, size, &key_length);
-        // Received and decrypted key successfully
+        // Check if key was decrypted successfully
+        if(key == NULL) {
+            send_msg(conn, NULL, 0, ERROR_RECEIPT);
+            exit(EXIT_FAILURE);
+        }
+        // Send confirmation of success
         send_msg(conn, NULL, 0, SUCCESS_RECEIPT);
         // Receive data
         buf = recv_msg(conn, &size);
+        // Copy encrypted data and IV into seperate buffers
         unsigned char msg[size];
         memcpy(msg, buf, size);
         memcpy(iv, buf + size - 128, 128);
         free(buf);
+        
         int new_size = 0;
         unsigned char *decrypted = decrypt_data(msg, size, &new_size, key, key_length, iv);
+        // Check if decryption was succesful
+        if(decrypted == NULL) {
+            send_msg(conn, NULL, 0, ERROR_RECEIPT);
+            exit(EXIT_FAILURE);
+        }
         printf("%s\n", decrypted);
+        
+        // Analyse the data
         int send_size = 0;
         char *result;
         if(service_type == 'a') {
@@ -91,12 +104,22 @@ int main(int argc, char *argv[])
             exit(EXIT_FAILURE);
         }
         free(decrypted);
+        // Generate random IV
         arc4random_buf(iv, 128);
+        // Encrypt the results
         unsigned char *encrypted = encrypt_data((unsigned char *)result, send_size, &new_size, key, key_length, iv);
+        // Check encryption was successful
+        if(encrypted == NULL) {
+            send_msg(conn, NULL, 0, ERROR_RECEIPT);
+            exit(EXIT_FAILURE);
+        }
+        // Put results into buffer with IV
         buf = malloc(new_size + 128);
         memcpy(buf, encrypted, new_size);
         memcpy(buf + new_size, iv, 128);
+        // Send the message to the collector
         send_msg(conn, buf, new_size + 128, SUCCESS_RECEIPT);
+        // End connection with director
         SSL_shutdown(conn->ssl);
         SSL_free(conn->ssl);
         free(conn);
@@ -121,20 +144,21 @@ char *find_mean(char *str, int *send_size)
     char *result = malloc(30);
     int total = 0;
     int n = 0;
+    // Loop through string
     while(*str != '\0') {
         int index = 0;
         char *number = NULL;
-        printf("Current number is %s\n", number);
         
+        // Loop until we reach ':' character
         while(*(str + index) != ':' && *(str + index) != '\0') {
+            // Allocate memory in number string
             number = realloc(number, index + 1);
+            // Set number in string
             number[index] = str[index];
-            printf("%c\n", *(number + index));
             index ++;
         }
-        number = realloc(number, index + 1);
-        number[index + 1] = '\0';
-        printf("%s\n", number);
+        number = realloc(number, index);
+        number[index] = '\0';
         n++;
         total += atoi(number);
         free(number);
@@ -143,9 +167,6 @@ char *find_mean(char *str, int *send_size)
             break;
         }
         str = str + index + 1;
-        printf("Total is %i\n", total);
-        printf("Number of items is %i\n", n);
-        printf("String is at %c\n", *str);
     }
     double mean = ((double) total)/n;
     *send_size = sprintf(result, "%f", mean) + 1;

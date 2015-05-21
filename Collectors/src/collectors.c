@@ -61,32 +61,55 @@ int main(int argc, char *argv[])
         exit(EXIT_FAILURE);
     }
     recv_public_cert(conn);
-    // THIS IS ALL TEMPORARY - WILL FIND FUNCTIONS FOR THIS
+    
     int key_length;
+    // Generate key for communication
     unsigned char *key = gen_rand_key(&key_length);
+    // Encrypt the key
     unsigned char *encrypted = encrypt_key(key, key_length);
+    // Check encryption was successful
+    if(encrypted == NULL) {
+        send_msg(conn, NULL, 0, ERROR_RECEIPT);
+        exit(EXIT_FAILURE);
+    }
+    // Send the key
     send_msg(conn, (char *)encrypted, 256, SUCCESS_RECEIPT);
     free(encrypted);
     int after_size;
     int size;
     // Do a read because it's our turn
     char *buf = recv_msg(conn, &after_size);
+    // Generate random IV
     unsigned char iv[128];
     arc4random_buf(iv, 128);
+    // Encrypt the data to send
     encrypted = encrypt_data(message, message_size, &after_size, key, key_length, iv);
+    // Check encryption was successful
+    if(encrypted == NULL) {
+        send_msg(conn, NULL, 0, ERROR_RECEIPT);
+        exit(EXIT_FAILURE);
+    }
+    // Append the IV to the encrypted data to send
     buf = malloc(after_size + 128);
     memcpy(buf, encrypted, after_size);
     memcpy(buf + after_size, iv, 128);
     send_msg(conn, buf, after_size + 128, SUCCESS_RECEIPT);
     free(buf);
-    // Receive data
+    // Receive analysed data
     buf = recv_msg(conn, &size);
     unsigned char msg[size];
     memcpy(msg, buf, size);
     memcpy(iv, buf + size - 128, 128);
     int new_size = 0;
+    // Decrypt the data
     unsigned char *decrypted = decrypt_data(msg, size, &new_size, key, key_length, iv);
+    // Check if decryption was succesful
+    if(decrypted == NULL) {
+        send_msg(conn, NULL, 0, ERROR_RECEIPT);
+        exit(EXIT_FAILURE);
+    }
     printf("%s\n", decrypted);
+    // Send close message
     send_msg(conn, NULL, 0, SUCCESS_CLOSE);
     SSL_free(conn->ssl);
     free(conn);

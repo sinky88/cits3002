@@ -25,7 +25,7 @@
 #define DIR_CERT "certs/cert.pem"
 #define DIR_KEY "private/key.pem"
 #define TEMP_DIR "temp/"
-#define TIMEOUT 10
+#define TIMEOUT 1000
 #define BUFSIZE 256
 
 //
@@ -80,10 +80,11 @@ typedef struct {
 } CONN;
 
 typedef struct {
-    char                    type; // This should only be Analyst
+    char                    type; // Analyst or collector
     char                    service_type; // Type of service offered/required
-    int                     client_id;  // ID of Analyst
+    int                     client_id;  // ID of Analyst or Collector
     SSL                     *a_ssl;     // Connection to the analyst
+    SSL                     *c_ssl;     // Connection to the collector
 } INFO;
 
 typedef struct node {
@@ -95,16 +96,18 @@ typedef struct node {
 extern  int             init_conn(CONN *conn);
 extern  int             load_certs(CONN *conn);
 extern  int             *wait_for_connection(char *port);
-extern  int             register_client(CONN *conn, node_t *client_list, int client_id);
-extern  int             service_collector(CONN *conn, INFO *analyst);
-extern  char            *recv_msg(void *ssl, int *size, char *type);
+extern  int             register_client(CONN *conn, node_t *analyst_list, node_t *collector_list, int *client_id);
+extern  int             service_collectors(node_t *collector_list);
+extern  char            *recv_msg(void *ssl, int *size, char *type, bool *error);
 extern  int             send_msg(void *ssl, char *buf, int size, char type);
+extern  int             error_handler(char msg_type);
 
 
 // Defined in lists.c
 extern  node_t          *create_list(INFO *info);
 extern  int             *add_entry(node_t *head, INFO *info);
 extern  INFO            *check_match(node_t *head, char service_type);
+extern  INFO            *get_next_entry(node_t **head);
 extern  int             remove_entry(node_t *head, int client_id);
 
 

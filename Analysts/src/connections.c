@@ -53,6 +53,7 @@ CONN *establish_connection(char *addr, char *port)
     // Connect to server
     if(connect(conn->sd, res->ai_addr, res->ai_addrlen) != 0) {
         perror("connection");
+        exit(EXIT_FAILURE);
     }
     
     // Set BIO into SSL structure
@@ -62,6 +63,7 @@ CONN *establish_connection(char *addr, char *port)
     // Perform handshake
     if(SSL_connect(conn->ssl) != 1) {
         perror("handshake\n");
+        exit(EXIT_FAILURE);
     }
     
     printf("Connection Established\n");
@@ -85,7 +87,8 @@ char *recv_msg(CONN *conn, int *size)
     char *header  = malloc(sizeof(header_size));
     // Receive message header
     if(SSL_read(conn->ssl, header, header_size) <= 0) {
-        perror("SSL read");
+        fprintf(stderr, "Lost connection with the Director\n");
+        send_msg(conn, NULL, 0, ERROR_RECEIPT);
         free(header);
         exit(EXIT_FAILURE);
     }
@@ -97,12 +100,10 @@ char *recv_msg(CONN *conn, int *size)
     // Make sure integer is in system byte order
     *size = ntohl(network_size);
 
-    // TODO add more error handling
-    if(msg_type != SUCCESS_RECEIPT) {
-        printf("%i\n", msg_type);
-        fprintf(stderr, "Error receiving message\n");
+    // Error handling
+    if(error_handler(msg_type) != 0) {
+        SSL_shutdown(conn->ssl);
         exit(EXIT_FAILURE);
-        // bad stuff
     }
     if(*size == 0) {
         return NULL;
@@ -110,7 +111,8 @@ char *recv_msg(CONN *conn, int *size)
     char *buf = malloc(*size);
     // Receive data
     if(SSL_read(conn->ssl, buf, *size) <= 0) {
-        perror("SSL read");
+        fprintf(stderr, "Lost connection with the Director\n");
+        send_msg(conn, NULL, 0, ERROR_RECEIPT);
         free(header);
         free(buf);
         exit(EXIT_FAILURE);
@@ -125,31 +127,39 @@ int send_msg(CONN *conn, char *buf, int size, char type)
     char *header = malloc(header_size);
     // Make sure integer is in network byte order
     uint32_t network_size = htonl(size);
-    // Pack integer and char
     memcpy(header, &network_size, sizeof(uint32_t));
     memcpy(header + sizeof(uint32_t), &type, sizeof(char));
     // Send message header
     if(SSL_write(conn->ssl, header, header_size) <= 0) {
         perror("SSL write");
         free(header);
-        return -1;
+        return CLOSED_CON;
     }
+    // If size is zero then no data to send
     if(size == 0) {
         return 0;
     }
     // Send data
     if(SSL_write(conn->ssl, buf, size) <= 0) {
         perror("SSL write");
-        return -1;
+        free(header);
+        return CLOSED_CON;
     }
-    
+    free(header);
     return 0;
 }
 
 
 int send_public_cert(CONN *conn)
 {
+    // Open public certificate for reading
     FILE *fp = fopen(ANA_CERT, "r");
+    if(fp == NULL) {
+        perror("Opening certificate");
+        send_msg(conn, NULL, 0, CERT_ERROR);
+        SSL_shutdown(conn->ssl);
+        exit(EXIT_FAILURE);
+    }
     fseek(fp, 0, SEEK_END);
     int size = ftell(fp);
     rewind(fp);
@@ -160,6 +170,23 @@ int send_public_cert(CONN *conn)
     return 0;
 }
 
+int error_handler(char msg_type)
+{
+    switch(msg_type){
+        case ERROR_RECEIPT  :
+            fprintf(stderr, "Collector reports error receiving last message\n");
+            return -1;
+        case CLOSED_CON  :
+            fprintf(stderr, "Connection to director lost\n");
+            return -1;
+        case CERT_ERROR :
+            fprintf(stderr, "Collector reports error with certificate\n");
+            return -1;
+        case SUCCESS_CLOSE  :
+            return 1;
+    }
+    return 0;
+}
 
 
 
