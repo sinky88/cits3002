@@ -57,9 +57,9 @@ int main(int argc, char *argv[])
     // Establish connection with a director
     CONN *conn = establish_connection(serveraddr, serverport);
     
-    buy_ecent(conn);
+    // buy_ecent(conn);
     
-    exit(0);
+    // exit(0);
     
     if(server_type == 'd') {
         message_size = strlen(argv[optind + 2]) + 1;
