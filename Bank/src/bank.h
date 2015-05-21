@@ -17,73 +17,71 @@
 #include <openssl/ssl.h>
 #include <openssl/err.h>
 
-#define PORT 2222
-#define BACKLOG 5
-#define PORT_STR_LEN 6
-#define CA_CERT "ca.pem"
-#define DIR_CERT "certs/cert.pem"
-#define DIR_KEY "private/key.pem"
 
-// Connection types
+/* DEFAULT CONFIGURATION */
 
-#define ANALYST_CON     0
-#define BANK_CON        1
-#define COLLECTOR_CON   2
-#define DIRECTOR_CON    3
-#define ACCEPT_CON      4
-#define ERROR_CON       5
+// Server Configuration
+#define DEFAULT_PORT "6552"
+#define BACKLOG 10
 
+#define BANK_CERT "certs/cert.pem"
+#define BANK_KEY "private/key.pem"
+
+#define OPT_STRING "p:"
+#define TEMP_DIR "temp/"
+
+// Bank Configuration
+#define COINS_AVAIL     10000
+
+
+/* COMMUNICATION */
 
 // Message type
+#define REQUEST_FOR_COIN    'a'
+#define SEND_COIN           'b'
+#define DEPOSIT_COIN        'c'
+#define APPROVAL_OF_COIN    'd'
+#define DENIAL_OF_COIN      'e'
+#define NO_FUNDS_ERROR      'f'
 
-#define NEW_ANALYST     0
-#define NEW_COLLECTOR   1
-#define DATA            2 
-#define SUCCESS_RECEIPT 3
-#define ERROR_RECEIPT   4
 
-
-// Structures as part of protocol
-
-typedef struct {
-    char                    msg_size;
-    char                    connection_type;
-} HAND_SHAKE;
+/* STRUCTURES */
 
 typedef struct {
-    char                    msg_type;
-    char                    service_type;
-    uint16_t                port;
-} ANALYST_MSG;
-
-typedef struct {
-    char                    msg_type;
-    char                    service_type;
-    uint16_t                port;
-} COLLECTOR_MSG;
-
-typedef struct {
-    char                    msg_type;
-    char                    service_type;
-    uint16_t                port;
-} DIRECTOR_MSG;
-
-//Structures for this software
+    uint32_t                cid;
+    bool                    spent;
+} COIN;
 
 typedef struct {
     BIO                     *bio;
     SSL                     *ssl;
     SSL_CTX                 *ctx;
-    int                     sd;
-} CONN;
+} SSL_CONN;
+
+
+/* FUNCTIONS */
 
 // Defined in connections.c
-extern  int             init_conn(CONN *conn);
-extern  int             load_trust(CONN *conn);
-extern  int             load_certs(CONN *conn);
-extern  int             check_certs(CONN *conn);
-extern  int             establish_connection(CONN *conn, char *addr, int port);
-extern  int             wait_for_connection(CONN *conn, int port);
-extern  int             recv_msg(CONN *conn);
-extern  int             send_msg(CONN *conn, char *msg, int msg_size);
+extern  int             init_comm_on_port(char *port);
+extern  int             serve_client(int listening_socket, SSL_CONN *conn);
+extern  SSL_CONN        *establish_ssl_conn();
+extern  char            *recv_msg(void *ssl, int *size, char *type);
+extern  int             send_msg(void *ssl, char *buf, int size, char type);
+
+// Defined in tasks.c
+extern  int             generate_coin();
+extern  int             coin_value(int cid);
+
+// Defined in encryptions.c
+extern  unsigned char   *gen_rand_key(int *keylength);
+extern  unsigned char   *encrypt_string(unsigned char *str, int length, int *after_length);
+extern  char            *decrypt_string(unsigned char *encrypted, int length);
+
+extern  X509            *createX509(char *filename);
+
+/* VARIABLES */
+extern COIN b_coins[COINS_AVAIL];
+extern int  coin_count;
+
+extern FILE* FILE_OUTPUT;
 
