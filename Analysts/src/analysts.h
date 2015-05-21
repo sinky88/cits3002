@@ -87,4 +87,5 @@ extern  unsigned char   *decrypt_data(unsigned char *buf, int size, int *after_s
 // Defined in analysts.c
 extern char             *reverse_str(char *str);
 extern char             *find_mean(char *str, int *send_size);
+extern char             *find_maxsize(char *str);
 
