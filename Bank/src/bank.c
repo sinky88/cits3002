@@ -3,6 +3,7 @@
 COIN b_coins[COINS_AVAIL];
 int coin_count = 0;
 
+
 int main(int argc, char *argv[])
 {
     

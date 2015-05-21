@@ -73,10 +73,8 @@ extern  int             generate_coin();
 extern  int             coin_value(int cid);
 
 // Defined in encryptions.c
-extern  unsigned char   *gen_rand_key(int *keylength);
 extern  unsigned char   *encrypt_string(unsigned char *str, int length, int *after_length);
 extern  char            *decrypt_string(unsigned char *encrypted, int length);
-
 extern  X509            *createX509(char *filename);
 
 /* VARIABLES */

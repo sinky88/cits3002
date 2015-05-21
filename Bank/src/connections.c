@@ -239,28 +239,44 @@ int serve_client(int listening_socket, SSL_CONN *conn)
                     printf("error\n");
                 }
                 
+                //string to fixed size either 16 or 32
+                
                 
                 for(int i = 0; i < numcoins; i++) {
                     int coinid = generate_coin();
+                    
 
                     char *str = malloc(6);
                     sprintf(str, "%d", coinid );
                     
-                    printf("outputcoin= %s, len=%d\n", str, (int)strlen(str));
+                    //char *str = malloc(32);
+                    //int i = strlen(temp);
+                    //memcpy(str, temp, i);
                     
-                    send_msg(conn->ssl, str, (int)strlen(str), SEND_COIN);
-                    
+                    //for(int j = i; j < 31; j ++) {
+                    //    str[j] = '*';
+                    //}
+                    //str[31] = '\0';
                     
                     
                     int length = strlen(str) + 1;
                     int after_length;
                     unsigned char *encrypted_cid = encrypt_string((unsigned char *)str, length, &after_length);
                     printf("length = %d\n", after_length);
+                    
+                    
+                    printf("outputcoin= %s, len=%d\n", str, (int)strlen(str));
+                    
+                    send_msg(conn->ssl, (char *)encrypted_cid, after_length, SEND_COIN);
+                    
+                    
+                    
+                    /*
                     char* str2 = decrypt_string(encrypted_cid, after_length);
                     if(str2==NULL) printf("error!\n");
                     
                     printf("decrypted value is %s\n", str2);
-                    
+                    */
                     
                 
                 }
@@ -269,20 +285,21 @@ int serve_client(int listening_socket, SSL_CONN *conn)
                 
             case DEPOSIT_COIN:
             {
-                printf("hi!\n");
-                int coinid = atoi(rcvd_message);
+                char* str2 = decrypt_string((unsigned char *)rcvd_message, i_size);
+                
+                if(str2==NULL) printf("error!\n");
+                printf("decrypted value is %s\n", str2);
+                
+                
+                int coinid = atoi(str2);
                 if( coinid == 0) {
                     printf("error\n");
                 }
-                
-                printf("hi!\n");
                 
                 printf("coin id=%d\n", coinid);
                 
                 int val = coin_value(coinid);
                 printf("val=%d\n", val);
-
-                
                 
                 char output_type;
                 

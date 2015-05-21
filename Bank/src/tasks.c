@@ -22,8 +22,15 @@ int coin_value(int cid)
 {
     for (int i = 0; i < COINS_AVAIL; i++) {
         if(cid==b_coins[i].cid) {
-            if(b_coins[i].spent) return -1;
-            else return 1;
+            if(b_coins[i].spent) {
+                return -1;
+                
+            }
+            
+            else {
+                b_coins[i].spent = true;
+                return 1;
+            }
         }
     }
     return -1;

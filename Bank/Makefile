@@ -1,6 +1,6 @@
 PROJECT =  bank
 HEADERS =  $(PROJECT).h
-OBJ 	=  src/bank.o src/connections.o
+OBJ 	=  src/bank.o src/connections.o src/tasks.o src/encryptions.o
 
 C99	=  cc -std=c99
 CFLAGS	=  -Wall -Wno-deprecated-declarations -pedantic -Werror
