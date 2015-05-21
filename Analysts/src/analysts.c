@@ -13,8 +13,8 @@ int main(int argc, char *argv[])
     int result  = 0;
     char *diraddr;
     char *dirport;
-    char *bankaddr = "127.0.0.1";
-    char *bankport = "6552";
+    char *bankaddr = DEFAULT_BANK_ADDR;
+    char *bankport = DEFAULT_BANK_PORT;
     
     char service_type = DEFAULT_SERVICE;
     
@@ -60,6 +60,10 @@ int main(int argc, char *argv[])
 
         // Wait for confirmation of collector
         char *receipt = recv_msg(conn, &size, &msg_type);
+        if(receipt == NULL) {
+            error_handler(msg_type);
+            continue;
+        }
         if(*receipt != COLLECTOR_FOUND) {
             fprintf(stderr, "Error connecting to collector\n");
             free(receipt);
@@ -90,10 +94,6 @@ int main(int argc, char *argv[])
         if(error_handler(msg_type) < 0) {
             continue;
         }
-        
-        FILE *fp = fopen("TEMP.file", "w");
-        fwrite(decrypted, new_size, 1, fp);
-        fclose(fp);
         
         // Establish connection with the bank
         CONN *conn2 = establish_connection(bankaddr, bankport);
@@ -135,6 +135,9 @@ int main(int argc, char *argv[])
             send_size = strlen(result) + 1;
         } else if(service_type == 'b') {
             result = find_mean((char *)decrypted, &send_size);
+        } else if(service_type == 'c') {
+            result = rot13((char *)decrypted);
+            send_size = strlen(result) + 1;
         } else {
             continue;
         }
@@ -199,6 +202,7 @@ char *find_mean(char *str, int *send_size)
     *send_size = sprintf(result, "%f", mean) + 1;
     return result;
 }
+
 char *find_maxsize(char *str)
 {
     
@@ -225,9 +229,24 @@ char *find_maxsize(char *str)
         maxlength = length;
         place = strlen(str) - length;
     }
-    for(int ii = 0; ii<maxlength; ii++)
+    for(int ii = 0; ii<maxlength; ii++) {
         *result = str[place+ii];
-        return result;
+    }
+    return result;
+}
+
+char *rot13(char *s)
+{
+    char *p=s;
+    int upper;
+    
+    while(*p) {
+        upper=toupper(*p);
+        if(upper>='A' && upper<='M') *p+=13;
+        else if(upper>='N' && upper<='Z') *p-=13;
+        ++p;
+    }
+    return s;
 }
 
 

@@ -16,8 +16,8 @@ int main(int argc, char *argv[])
     char *serverport;
     char service_type = DEFAULT_SERVICE;
     char server_type = DEFAULT_SERVER;
-    char *bankaddr = "127.0.0.1";
-    char *bankport = "6552";
+    char *bankaddr = DEFAULT_BANK_ADDR;
+    char *bankport = DEFAULT_BANK_PORT;
     unsigned char *message;
     int message_size;
     
@@ -94,44 +94,25 @@ int main(int argc, char *argv[])
         send_msg(conn, (char *)encrypted, 256, SUCCESS_RECEIPT);
         free(encrypted);
         int after_size;
-        int size;
         char msg_type;
         // Do a read because it's our turn
         recv_msg(conn, &after_size, &msg_type);
         
         send_ecent(conn, key, key_length);
-
-        // Generate random IV
-        unsigned char iv[128];
-        arc4random_buf(iv, 128);
-        // Encrypt the data to send
-        encrypted = encrypt_data(message, message_size, &after_size, key, key_length, iv);
-        // Check encryption was successful
-        if(encrypted == NULL) {
-            send_msg(conn, NULL, 0, ERROR_RECEIPT);
+        
+        if(send_encrypt_msg(conn, (char *)message, message_size, SUCCESS_RECEIPT, key, key_length) < 0) {
             exit(EXIT_FAILURE);
         }
-        // Append the IV to the encrypted data to send
-        char *buf = malloc(after_size + 128);
-        memcpy(buf, encrypted, after_size);
-        memcpy(buf + after_size, iv, 128);
-        send_msg(conn, buf, after_size + 128, SUCCESS_RECEIPT);
-        free(buf);
-        free(encrypted);
         
         // Receive analysed data
-        buf = recv_msg(conn, &size, &msg_type);
-        unsigned char msg[size];
-        memcpy(msg, buf, size);
-        memcpy(iv, buf + size - 128, 128);
-        int new_size = 0;
-        // Decrypt the data
-        unsigned char *decrypted = decrypt_data(msg, size, &new_size, key, key_length, iv);
+        
+        unsigned char *decrypted = recv_encrypt_msg(conn, &after_size, &msg_type, key, key_length);
         // Check if decryption was succesful
         if(decrypted == NULL) {
             send_msg(conn, NULL, 0, ERROR_RECEIPT);
             exit(EXIT_FAILURE);
         }
+
         printf("%s\n", decrypted);
         // Send close message
         send_msg(conn, NULL, 0, SUCCESS_CLOSE);

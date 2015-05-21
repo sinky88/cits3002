@@ -295,9 +295,6 @@ int send_ecent(CONN *conn, unsigned char *key, int key_length)
     fseek(fp, -ECENT_SIZE, SEEK_END);
     char *buf = malloc(ECENT_SIZE);
     fread(buf, ECENT_SIZE, 1, fp);
-    FILE *temp = fopen("TEMP.file", "w");
-    fwrite(buf, ECENT_SIZE, 1, temp);
-    fclose(temp);
     char msg_type;
     // Generate random IV
     unsigned char iv[128];

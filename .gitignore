@@ -13,3 +13,19 @@ Analysts/analysts
 
 
 
+
+Collectors/temp.file
+
+Collectors/temp/coins.file
+
+Bank/Makefile
+
+Bank/bank
+
+Analysts/analysts
+
+Bank/certs/cert.pem
+
+Bank/certs/readme.txt
+
+Bank/Makefile

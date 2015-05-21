@@ -21,7 +21,8 @@
 #define OPT_STRING "c t:"
 #define DEFAULT_SERVICE 'a'
 #define DEFAULT_SERVER 'd'
-#define DEFAULT_PORT "7777"
+#define DEFAULT_BANK_ADDR "127.0.0.1"
+#define DEFAULT_BANK_PORT "6552"
 #define BACKLOG 5
 #define COL_CERT "certs/cert.pem"
 #define COL_KEY "private/key.pem"

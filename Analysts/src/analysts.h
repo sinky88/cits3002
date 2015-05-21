@@ -11,6 +11,8 @@
 #include <netdb.h>
 #include <unistd.h>
 #include <signal.h>
+#include <ctype.h>
+
 
 // OpenSSL headers
 #include <openssl/bio.h>
@@ -18,8 +20,8 @@
 #include <openssl/err.h>
 
 #define OPT_STRING "t:"
-#define PORT 6666
-#define DEFAULT_PORT "6666"
+#define DEFAULT_BANK_ADDR "127.0.0.1"
+#define DEFAULT_BANK_PORT "6552"
 #define DEFAULT_SERVICE 'a'
 #define BACKLOG 5
 #define ANA_CERT "certs/cert.pem"
@@ -91,7 +93,9 @@ extern  unsigned char   *decrypt_key(unsigned char *encrypted, int length, int *
 extern  unsigned char   *decrypt_data(unsigned char *buf, int size, int *after_size, unsigned char *key, int keylength, unsigned char *iv);
 
 // Defined in analysts.c
-extern char             *reverse_str(char *str);
-extern char             *find_mean(char *str, int *send_size);
-extern char             *find_maxsize(char *str);
+extern  char             *reverse_str(char *str);
+extern  char             *find_mean(char *str, int *send_size);
+extern  char             *find_maxsize(char *str);
+extern  char             *rot13(char *s);
+
 
