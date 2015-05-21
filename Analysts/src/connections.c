@@ -182,9 +182,21 @@ int error_handler(char msg_type)
         case CERT_ERROR :
             fprintf(stderr, "Collector reports error with certificate\n");
             return -1;
+        case DENIAL_OF_COIN :
+            fprintf(stderr, "Bank denied coin deposit\n");
+            return -1;
         case SUCCESS_CLOSE  :
             return 1;
     }
+    return 0;
+}
+
+int deposit_ecent(CONN *conn, char *buf, int size)
+{
+    send_msg(conn, buf, size, DEPOSIT_COIN);
+    int new_size;
+    recv_msg(conn, &new_size);
+    
     return 0;
 }
 

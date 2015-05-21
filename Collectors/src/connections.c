@@ -191,7 +191,18 @@ int error_handler(char msg_type)
     return 0;
 }
 
-char *buy_ecent(CONN *conn)
+int buy_ecent(CONN *conn)
 {
-    return NULL;
+    FILE *fp = fopen("Temp.coins", "w");
+    fseek(fp, 0, SEEK_END);
+    char *buf;
+    send_msg(conn, "10", sizeof("10"), REQUEST_FOR_COIN);
+    for(int i = 0; i < 10; i ++) {
+        int size = 0;
+        buf = recv_msg(conn, &size);
+        fwrite(buf, size, 1, fp);
+        free(buf);
+    }
+    fclose(fp);
+    return 0;
 }

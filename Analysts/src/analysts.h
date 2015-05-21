@@ -44,6 +44,15 @@
 #define CERT_ERROR      10
 
 
+// More message types
+
+#define REQUEST_FOR_COIN    'a'
+#define SEND_COIN           'b'
+#define DEPOSIT_COIN        'c'
+#define APPROVAL_OF_COIN    'd'
+#define DENIAL_OF_COIN      'e'
+#define NO_FUNDS_ERROR      'f'
+
 // Structures as part of protocol
 
 typedef struct {
@@ -65,7 +74,7 @@ extern  int             init_conn(CONN *conn);
 extern  int             load_certs(CONN *conn);
 extern  CONN            *establish_connection(char *addr, char *port);
 extern  int             register_with_dir(CONN *conn, char service_type);
-extern  char            *recv_msg(CONN *conn, int *size);
+extern  char            *recv_msg(CONN *conn, int *size, char *type);
 extern  int             send_msg(CONN *conn, char *buf, int size, char type);
 extern  int             send_public_cert(CONN *conn);
 extern  int             error_handler(char msg_type);

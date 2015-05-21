@@ -1,5 +1,5 @@
 //
-//  lists.c
+//  A linked list for storing the INFO structures of collectors or analysts
 //
 //
 //  Created by Benjamin Sinclair on 4/05/2015.
