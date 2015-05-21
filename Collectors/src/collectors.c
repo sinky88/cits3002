@@ -57,16 +57,14 @@ int main(int argc, char *argv[])
         // Buy more ecents
         buy_ecent(conn, 100);
         
+        SSL_shutdown(conn->ssl);
         
+        SSL_free(conn->ssl);
+        free(conn);
     }
     
-
     // Establish connection with a director
     CONN *conn = establish_connection(serveraddr, serverport);
-    
-    //buy_ecent(conn);
-    
-    //exit(0);
     
     if(server_type == 'd') {
         message_size = strlen(argv[optind + 2]) + 1;
@@ -93,8 +91,12 @@ int main(int argc, char *argv[])
         free(encrypted);
         int after_size;
         int size;
+        char msg_type;
         // Do a read because it's our turn
-        char *buf = recv_msg(conn, &after_size);
+        char *buf = recv_msg(conn, &after_size, &msg_type);
+        
+        send_ecent(conn, key, key_length);
+        
         // Generate random IV
         unsigned char iv[128];
         arc4random_buf(iv, 128);
@@ -111,8 +113,10 @@ int main(int argc, char *argv[])
         memcpy(buf + after_size, iv, 128);
         send_msg(conn, buf, after_size + 128, SUCCESS_RECEIPT);
         free(buf);
+        free(encrypted);
+        
         // Receive analysed data
-        buf = recv_msg(conn, &size);
+        buf = recv_msg(conn, &size, &msg_type);
         unsigned char msg[size];
         memcpy(msg, buf, size);
         memcpy(iv, buf + size - 128, 128);
@@ -127,9 +131,6 @@ int main(int argc, char *argv[])
         printf("%s\n", decrypted);
         // Send close message
         send_msg(conn, NULL, 0, SUCCESS_CLOSE);
-    }
-    if(server_type == 'b') {
-        // Do bank stuff
     }
     SSL_free(conn->ssl);
     free(conn);

@@ -13,6 +13,9 @@ int main(int argc, char *argv[])
     int result  = 0;
     char *diraddr;
     char *dirport;
+    char *bankaddr = "127.0.0.1";
+    char *bankport = "6552";
+    
     char service_type = DEFAULT_SERVICE;
     
     int opt = 0;
@@ -47,19 +50,6 @@ int main(int argc, char *argv[])
         // Establish connection with a director
         CONN *conn = establish_connection(diraddr, dirport);
         
-        //for(int i = 0; i <
-        //FILE *fp = fopen("Temp.coins", "r");
-        //char *ecent = malloc(256);
-        //fread(ecent, 256, 1, fp);
-        //fclose(fp);
-        
-        // TEMP
-        //deposit_ecent(conn, ecent, 256);
-        
-        
-        //exit(0);
-        
-        
         // Register with director
         if(register_with_dir(conn, service_type) != 0) {
             fprintf(stderr, "Error registering with director\n");
@@ -87,12 +77,14 @@ int main(int argc, char *argv[])
         // Check if key was decrypted successfully
         if(key == NULL) {
             send_msg(conn, NULL, 0, ERROR_RECEIPT);
-            exit(EXIT_FAILURE);
+            continue;
         }
+        free(buf); // HMMMMMMMMMMMM
         // Send confirmation of success
         send_msg(conn, NULL, 0, SUCCESS_RECEIPT);
-        // Receive data
+        // Recv the ecent payment
         buf = recv_msg(conn, &size, &msg_type);
+        
         // Copy encrypted data and IV into seperate buffers
         unsigned char msg[size];
         memcpy(msg, buf, size);
@@ -101,10 +93,56 @@ int main(int argc, char *argv[])
         
         int new_size = 0;
         unsigned char *decrypted = decrypt_data(msg, size, &new_size, key, key_length, iv);
+        
         // Check if decryption was succesful
         if(decrypted == NULL) {
             send_msg(conn, NULL, 0, ERROR_RECEIPT);
-            exit(EXIT_FAILURE);
+            continue;
+        }
+
+        // Establish connection with the bank
+        CONN *conn2 = establish_connection(bankaddr, bankport);
+        
+        if(deposit_ecent(conn2, (char *)decrypted, new_size) < 0) {
+            SSL_shutdown(conn2->ssl);
+            SSL_free(conn2->ssl);
+            free(conn2);
+            // Send failure message to collector
+            send_msg(conn, NULL, 0, DENIAL_OF_COIN);
+            SSL_shutdown(conn->ssl);
+            SSL_free(conn->ssl);
+            free(conn);
+            free(decrypted);
+            continue;
+        }
+        
+        // Shutdown connection to bank
+        SSL_shutdown(conn2->ssl);
+        SSL_free(conn2->ssl);
+        free(conn2);
+        
+        free(decrypted);
+        
+        // Send confirmation of success to collector
+        send_msg(conn, NULL, 0, APPROVAL_OF_COIN);
+        
+        // Receive data
+        buf = recv_msg(conn, &size, &msg_type);
+        // Copy encrypted data and IV into seperate buffers
+        unsigned char msg2[size];
+        memcpy(msg2, buf, size);
+        memcpy(iv, buf + size - 128, 128);
+        free(buf);
+        
+        decrypted = decrypt_data(msg, size, &new_size, key, key_length, iv);
+        // Check if decryption was succesful
+        if(decrypted == NULL) {
+            send_msg(conn, NULL, 0, ERROR_RECEIPT);
+            // End connection with director
+            SSL_shutdown(conn->ssl);
+            SSL_free(conn->ssl);
+            free(conn);
+            continue;
         }
         printf("%s\n", decrypted);
         
@@ -117,7 +155,7 @@ int main(int argc, char *argv[])
         } else if(service_type == 'b') {
             result = find_mean((char *)decrypted, &send_size);
         } else {
-            exit(EXIT_FAILURE);
+            continue;
         }
         free(decrypted);
         // Generate random IV
@@ -127,7 +165,11 @@ int main(int argc, char *argv[])
         // Check encryption was successful
         if(encrypted == NULL) {
             send_msg(conn, NULL, 0, ERROR_RECEIPT);
-            exit(EXIT_FAILURE);
+            // End connection with director
+            SSL_shutdown(conn->ssl);
+            SSL_free(conn->ssl);
+            free(conn);
+            continue;
         }
         // Put results into buffer with IV
         buf = malloc(new_size + 128);
@@ -191,10 +233,10 @@ char *find_mean(char *str, int *send_size)
 char *find_maxsize(char *str)
 {
     
-    char *result;
+    char *result = NULL;
     int place=0,length=0, maxlength=0;
     
-    for(int i=0;i<strlen(*str);i++)
+    for(int i=0;i<strlen(str);i++)
     {
         if(str[i]==' ')
         {
@@ -212,10 +254,10 @@ char *find_maxsize(char *str)
     if (length>maxlength)
     {
         maxlength = length;
-        place = strlen(*str) - length;
+        place = strlen(str) - length;
     }
     for(int ii = 0; ii<maxlength; ii++)
-        *result = str[place+ii]
+        *result = str[place+ii];
         return result;
 }
 

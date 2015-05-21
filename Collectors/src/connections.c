@@ -73,12 +73,14 @@ int register_with_dir(CONN *conn, char service_type)
     // Send handshake info
     send_msg(conn, &service_type, sizeof(char), NEW_COLLECTOR);
     int size = 0;
+    char msg_type;
+    
     // Receive confirmation
-    recv_msg(conn, &size);
+    recv_msg(conn, &size, &msg_type);
     
     // Receive confirmation of available analyst
 
-    char *receipt = recv_msg(conn, &size);
+    char *receipt = recv_msg(conn, &size, &msg_type);
     if(*receipt == NO_ANALYST_FOUND) {
         fprintf(stderr, "No analysts found\n");
         free(receipt);
@@ -88,7 +90,7 @@ int register_with_dir(CONN *conn, char service_type)
     return 0;
 }
 
-char *recv_msg(CONN *conn, int *size)
+char *recv_msg(CONN *conn, int *size, char *msg_type)
 {
     int header_size = sizeof(uint32_t) + sizeof(char);
     char *header  = malloc(sizeof(header_size));
@@ -98,15 +100,16 @@ char *recv_msg(CONN *conn, int *size)
         free(header);
         exit(EXIT_FAILURE);
     }
-    char msg_type = 0;
+    char type = 0;
     uint32_t network_size = 0;
     // Unpack integer and char
     memcpy(&network_size, header, sizeof(uint32_t));
-    memcpy(&msg_type, header + sizeof(uint32_t), sizeof(char));
+    memcpy(&type, header + sizeof(uint32_t), sizeof(char));
     // Make sure integer is in system byte order
     *size = ntohl(network_size);
+    *msg_type = type;
     // Error handling
-    if(error_handler(msg_type) != 0) {
+    if(error_handler(type) != 0) {
         SSL_shutdown(conn->ssl);
         exit(EXIT_FAILURE);
     }
@@ -157,8 +160,9 @@ int send_msg(CONN *conn, char *buf, int size, char type)
 int recv_public_cert(CONN *conn)
 {
     int size = 0;
+    char msg_type;
     // Receive cert
-    char *buf = recv_msg(conn, &size);
+    char *buf = recv_msg(conn, &size, &msg_type);
     // Open cert file for writing
     FILE *fp = fopen(ANA_CERT, "w");
     if(fp == NULL) {
@@ -187,21 +191,24 @@ int error_handler(char msg_type)
             return -1;
         case SUCCESS_CLOSE  :
             return 1;
+        case DENIAL_OF_COIN :
+            fprintf(stderr, "Analyst unable to process payment\n");
+            return -1;
     }
     return 0;
 }
 
 int buy_ecent(CONN *conn, int amount)
 {
-    FILE *fp = fopen(ECENTS, "w");
-    fseek(fp, 0, SEEK_END);
+    FILE *fp = fopen(ECENTS, "a");
     char *amount_str = malloc(32);
     sprintf(amount_str, "%d" , amount);
     send_msg(conn, amount_str, strlen(amount_str) + 1, REQUEST_FOR_COIN);
     for(int i = 0; i < 10; i ++) {
         char *buf;
         int size = 0;
-        buf = recv_msg(conn, &size);
+        char msg_type;
+        buf = recv_msg(conn, &size, &msg_type);
         fwrite(buf, size, 1, fp);
         free(buf);
     }
@@ -215,10 +222,55 @@ int check_balance()
     FILE *fp = fopen(ECENTS, "r");
     if(fp == NULL) {
         fprintf(stderr, "Error opening ecent file\n");
+        exit(EXIT_FAILURE);
     }
-    fseek(fp, 0, SEEK_END);
+    fseek(fp, 0L, SEEK_END);
     int size = ftell(fp);
     balance = size / ECENT_SIZE;
-    
+    printf("Balance is %i \n", balance);
+    fclose(fp);
     return balance;
+}
+
+int send_ecent(CONN *conn, unsigned char *key, int key_length)
+{
+    int size;
+    int after_size;
+    // Read ecent file
+    FILE *fp = fopen(ECENTS, "r+");
+    if(fp == NULL) {
+        fprintf(stderr, "Error opening ecent file\n");
+        exit(EXIT_FAILURE);
+    }
+    fseek(fp, -ECENT_SIZE, SEEK_END);
+    char *buf = malloc(ECENT_SIZE);
+    fread(buf, ECENT_SIZE, 1, fp);
+    fclose(fp);
+    char msg_type;
+    // Generate random IV
+    unsigned char iv[128];
+    arc4random_buf(iv, 128);
+    // Encrypt the data to send
+    unsigned char *encrypted = encrypt_data((unsigned char *)buf, ECENT_SIZE, &after_size, key, key_length, iv);
+    free(buf);
+    // Check encryption was successful
+    if(encrypted == NULL) {
+        send_msg(conn, NULL, 0, ERROR_RECEIPT);
+        exit(EXIT_FAILURE);
+    }
+    // Append the IV to the encrypted data to send
+    buf = malloc(after_size + 128);
+    memcpy(buf, encrypted, after_size);
+    memcpy(buf + after_size, iv, 128);
+    send_msg(conn, buf, after_size + 128, PAYMENT);
+    free(buf);
+    free(encrypted);
+    recv_msg(conn, &size, &msg_type);
+    printf("Received\n");
+    if(error_handler(msg_type) < 0) {
+        truncate(ECENTS, ECENT_SIZE);
+    } else {
+        exit(EXIT_FAILURE);
+    }
+    return 0;
 }

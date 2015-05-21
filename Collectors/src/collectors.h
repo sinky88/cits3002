@@ -43,7 +43,7 @@
 
 #define NEW_ANALYST      0
 #define NEW_COLLECTOR    1
-#define DATA             2
+#define PAYMENT          2
 #define SUCCESS_RECEIPT  3
 #define ERROR_RECEIPT    4
 #define NO_ANALYST_FOUND 5
@@ -81,13 +81,13 @@ extern  int             init_conn(CONN *conn);
 extern  int             load_certs(CONN *conn);
 extern  CONN            *establish_connection(char *addr, char *port);
 extern  int             register_with_dir(CONN *conn, char service_type);
-extern  char            *recv_msg(CONN *conn, int *size);
+extern  char            *recv_msg(CONN *conn, int *size, char *msg_type);
 extern  int             send_msg(CONN *conn, char *buf, int size, char type);
 extern  int             recv_public_cert(CONN *conn);
 extern  int             error_handler(char msg_type);
 extern  int             buy_ecent(CONN *conn, int amount);
 extern  int             check_balance();
-
+extern  int             send_ecent(CONN *conn, unsigned char *key, int key_length);
 
 // Defined in encryptions.c
 extern  unsigned char   *gen_rand_key(int *keylength);

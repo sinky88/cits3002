@@ -200,7 +200,11 @@ int deposit_ecent(CONN *conn, char *buf, int size)
     char msg_type;
     recv_msg(conn, &new_size, &msg_type);
     printf("Return message type %c\n", msg_type);
-    return error_handler(msg_type);
+    if(error_handler(msg_type) < 0) {
+        send_msg(conn, NULL, 0, msg_type);
+        return -1;
+    }
+    return 0;
 }
 
 
