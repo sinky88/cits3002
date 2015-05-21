@@ -18,7 +18,7 @@
 #include <openssl/rsa.h>
 #include <openssl/pem.h>
 
-#define OPT_STRING "s:t"
+#define OPT_STRING "t:"
 #define DEFAULT_SERVICE 'a'
 #define DEFAULT_SERVER 'd'
 #define DEFAULT_PORT "7777"
@@ -31,6 +31,8 @@
 #define GEN_KEY "openssl rand -base64 32 > temp/rand.key"
 #define ENCRYPT_KEY "openssl rsautl -encrypt -certin -inkey temp/cert.pem -in temp/rand.key -out temp/rand.key.enc"
 #define USAGE "Usage: %s [-s server type -t service] address port message\n"
+#define ECENTS "temp/coins.file"
+#define ECENT_SIZE 256
 
 
 //
@@ -83,7 +85,8 @@ extern  char            *recv_msg(CONN *conn, int *size);
 extern  int             send_msg(CONN *conn, char *buf, int size, char type);
 extern  int             recv_public_cert(CONN *conn);
 extern  int             error_handler(char msg_type);
-extern  int             buy_ecent(CONN *conn);
+extern  int             buy_ecent(CONN *conn, int amount);
+extern  int             check_balance();
 
 
 // Defined in encryptions.c

@@ -75,13 +75,14 @@ int register_with_dir(CONN *conn, char service_type)
     // Send handshake info
     send_msg(conn, &service_type, sizeof(char), NEW_ANALYST);
     int size = 0;
+    char msg_type;
     // Receive confirmation
-    recv_msg(conn, &size);
+    recv_msg(conn, &size, &msg_type);
     
     return 0;
 }
 
-char *recv_msg(CONN *conn, int *size)
+char *recv_msg(CONN *conn, int *size, char *type)
 {
     int header_size = sizeof(uint32_t) + sizeof(char);
     char *header  = malloc(sizeof(header_size));
@@ -99,6 +100,7 @@ char *recv_msg(CONN *conn, int *size)
     memcpy(&msg_type, header + sizeof(uint32_t), sizeof(char));
     // Make sure integer is in system byte order
     *size = ntohl(network_size);
+    *type = msg_type;
 
     // Error handling
     if(error_handler(msg_type) != 0) {
@@ -195,9 +197,10 @@ int deposit_ecent(CONN *conn, char *buf, int size)
 {
     send_msg(conn, buf, size, DEPOSIT_COIN);
     int new_size;
-    recv_msg(conn, &new_size);
-    
-    return 0;
+    char msg_type;
+    recv_msg(conn, &new_size, &msg_type);
+    printf("Return message type %c\n", msg_type);
+    return error_handler(msg_type);
 }
 
 

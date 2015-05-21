@@ -15,6 +15,8 @@ int main(int argc, char *argv[])
     char *serverport;
     char service_type = DEFAULT_SERVICE;
     char server_type = DEFAULT_SERVER;
+    char *bankaddr = "127.0.0.1";
+    char *bankport = "6552";
     unsigned char *message;
     int message_size;
     
@@ -25,13 +27,6 @@ int main(int argc, char *argv[])
     {
         switch(opt)
         {
-            case 's':
-                if(optarg != NULL) {
-                    server_type = optarg[0];
-                } else {
-                    fprintf(stderr, USAGE, argv[0]);
-                    exit(EXIT_FAILURE);
-                }
             case 't':
                 if(optarg != NULL) {
                     service_type = optarg[0];
@@ -53,13 +48,25 @@ int main(int argc, char *argv[])
     // Set director port and address
     serveraddr = argv[optind];
     serverport = argv[optind + 1];
+    
+    // Check balance
+    if(check_balance() < 1) {
+        // Connect to bank
+        CONN *conn = establish_connection(bankaddr, bankport);
+        
+        // Buy more ecents
+        buy_ecent(conn, 100);
+        
+        
+    }
+    
 
     // Establish connection with a director
     CONN *conn = establish_connection(serveraddr, serverport);
     
-    // buy_ecent(conn);
+    //buy_ecent(conn);
     
-    // exit(0);
+    //exit(0);
     
     if(server_type == 'd') {
         message_size = strlen(argv[optind + 2]) + 1;

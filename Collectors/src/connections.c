@@ -180,7 +180,7 @@ int error_handler(char msg_type)
             fprintf(stderr, "Analyst reports error receiving last message\n");
             return -1;
         case CLOSED_CON  :
-            fprintf(stderr, "Connection to director lost\n");
+            fprintf(stderr, "Connection to lost\n");
             return -1;
         case CERT_ERROR :
             fprintf(stderr, "Analyst reports error with certificate\n");
@@ -191,13 +191,15 @@ int error_handler(char msg_type)
     return 0;
 }
 
-int buy_ecent(CONN *conn)
+int buy_ecent(CONN *conn, int amount)
 {
-    FILE *fp = fopen("Temp.coins", "w");
+    FILE *fp = fopen(ECENTS, "w");
     fseek(fp, 0, SEEK_END);
-    char *buf;
-    send_msg(conn, "10", sizeof("10"), REQUEST_FOR_COIN);
+    char *amount_str = malloc(32);
+    sprintf(amount_str, "%d" , amount);
+    send_msg(conn, amount_str, strlen(amount_str) + 1, REQUEST_FOR_COIN);
     for(int i = 0; i < 10; i ++) {
+        char *buf;
         int size = 0;
         buf = recv_msg(conn, &size);
         fwrite(buf, size, 1, fp);
@@ -205,4 +207,18 @@ int buy_ecent(CONN *conn)
     }
     fclose(fp);
     return 0;
+}
+
+int check_balance()
+{
+    int balance = 0;
+    FILE *fp = fopen(ECENTS, "r");
+    if(fp == NULL) {
+        fprintf(stderr, "Error opening ecent file\n");
+    }
+    fseek(fp, 0, SEEK_END);
+    int size = ftell(fp);
+    balance = size / ECENT_SIZE;
+    
+    return balance;
 }

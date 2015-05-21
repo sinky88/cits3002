@@ -78,6 +78,8 @@ extern  char            *recv_msg(CONN *conn, int *size, char *type);
 extern  int             send_msg(CONN *conn, char *buf, int size, char type);
 extern  int             send_public_cert(CONN *conn);
 extern  int             error_handler(char msg_type);
+extern  int             deposit_ecent(CONN *conn, char *buf, int size);
+
 
 // Defined in encryptions
 extern  unsigned char *encrypt_data(unsigned char *buf, int size, int *after_size, unsigned char *key, int keylength, unsigned char *iv);

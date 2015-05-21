@@ -46,14 +46,30 @@ int main(int argc, char *argv[])
     while(true) {
         // Establish connection with a director
         CONN *conn = establish_connection(diraddr, dirport);
+        
+        //for(int i = 0; i <
+        //FILE *fp = fopen("Temp.coins", "r");
+        //char *ecent = malloc(256);
+        //fread(ecent, 256, 1, fp);
+        //fclose(fp);
+        
+        // TEMP
+        //deposit_ecent(conn, ecent, 256);
+        
+        
+        //exit(0);
+        
+        
         // Register with director
         if(register_with_dir(conn, service_type) != 0) {
             fprintf(stderr, "Error registering with director\n");
             exit(EXIT_FAILURE);
         }
         int size = 0;
+        char msg_type;
+
         // Wait for confirmation of collector
-        char *receipt = recv_msg(conn, &size);
+        char *receipt = recv_msg(conn, &size, &msg_type);
         if(*receipt != COLLECTOR_FOUND) {
             fprintf(stderr, "Error connecting to collector\n");
             free(receipt);
@@ -66,7 +82,7 @@ int main(int argc, char *argv[])
         
         int key_length = 0;
         unsigned char iv[128];
-        char *buf = recv_msg(conn, &size);
+        char *buf = recv_msg(conn, &size, &msg_type);
         unsigned char *key = decrypt_key((unsigned char*)buf, size, &key_length);
         // Check if key was decrypted successfully
         if(key == NULL) {
@@ -76,7 +92,7 @@ int main(int argc, char *argv[])
         // Send confirmation of success
         send_msg(conn, NULL, 0, SUCCESS_RECEIPT);
         // Receive data
-        buf = recv_msg(conn, &size);
+        buf = recv_msg(conn, &size, &msg_type);
         // Copy encrypted data and IV into seperate buffers
         unsigned char msg[size];
         memcpy(msg, buf, size);
