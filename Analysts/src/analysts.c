@@ -172,5 +172,35 @@ char *find_mean(char *str, int *send_size)
     *send_size = sprintf(result, "%f", mean) + 1;
     return result;
 }
+char *find_maxsize(char *str)
+{
+    
+    char *result;
+    int place=0,length=0, maxlength=0;
+    
+    for(int i=0;i<strlen(*str);i++)
+    {
+        if(str[i]==' ')
+        {
+            if (length>maxlength)
+            {
+                maxlength = length;
+                place = i - length;
+            }
+            length = 0;
+        }
+        else
+            length++;
+    } 
+    
+    if (length>maxlength)
+    {
+        maxlength = length;
+        place = strlen(*str) - length;
+    }
+    for(int ii = 0; ii<maxlength; ii++)
+        *result = str[place+ii]
+        return result;
+}
 
 
