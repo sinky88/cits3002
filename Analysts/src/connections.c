@@ -91,7 +91,7 @@ char *recv_msg(CONN *conn, int *size, char *type)
         fprintf(stderr, "Lost connection with the Director\n");
         send_msg(conn, NULL, 0, ERROR_RECEIPT);
         free(header);
-        exit(EXIT_FAILURE);
+        return NULL;
     }
     char msg_type = 0;
     uint32_t network_size = 0;
@@ -105,7 +105,7 @@ char *recv_msg(CONN *conn, int *size, char *type)
     // Error handling
     if(error_handler(msg_type) != 0) {
         SSL_shutdown(conn->ssl);
-        exit(EXIT_FAILURE);
+        return NULL;
     }
     if(*size == 0) {
         return NULL;
@@ -117,7 +117,7 @@ char *recv_msg(CONN *conn, int *size, char *type)
         send_msg(conn, NULL, 0, ERROR_RECEIPT);
         free(header);
         free(buf);
-        exit(EXIT_FAILURE);
+        return NULL;
     }    
     return buf;
 }
@@ -151,6 +151,41 @@ int send_msg(CONN *conn, char *buf, int size, char type)
     return 0;
 }
 
+int send_encrypt_msg(CONN *conn, char *buf, int size, char type, unsigned char *key, int key_length)
+{
+    unsigned char iv[128];
+    int new_size;
+    // Generate random IV
+    arc4random_buf(iv, 128);
+    // Encrypt the results
+    unsigned char *encrypted = encrypt_data((unsigned char *)buf, size, &new_size, key, key_length, iv);
+    // Check encryption was successful
+    if(encrypted == NULL) {
+        send_msg(conn, NULL, 0, ERROR_RECEIPT);
+        // End connection with director
+        return -1;
+    }
+    // Put results into buffer with IV
+    buf = malloc(new_size + 128);
+    memcpy(buf, encrypted, new_size);
+    memcpy(buf + new_size, iv, 128);
+    // Send the message to the collector
+    send_msg(conn, buf, new_size + 128, type);
+    return 0;
+}
+
+unsigned char *recv_encrypt_msg(CONN *conn, int *new_size, char *type, unsigned char *key, int key_length)
+{
+    int size;
+    char *buf = recv_msg(conn, &size, type);
+    unsigned char iv[128];
+    unsigned char msg[size - 128];
+    memcpy(msg, buf, size - 128);
+    memcpy(iv, buf + size - 128, 128);
+    free(buf);
+    unsigned char *decrypted = decrypt_data(msg, size - 128, new_size, key, key_length, iv);
+    return decrypted;
+}
 
 int send_public_cert(CONN *conn)
 {
@@ -199,12 +234,7 @@ int deposit_ecent(CONN *conn, char *buf, int size)
     int new_size;
     char msg_type;
     recv_msg(conn, &new_size, &msg_type);
-    printf("Return message type %c\n", msg_type);
-    if(error_handler(msg_type) < 0) {
-        send_msg(conn, NULL, 0, msg_type);
-        return -1;
-    }
-    return 0;
+    return error_handler(msg_type);
 }
 
 

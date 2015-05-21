@@ -10,6 +10,7 @@
 
 int main(int argc, char *argv[])
 {
+    bool check = false;
     int result  = 0;
     char *serveraddr;
     char *serverport;
@@ -34,6 +35,9 @@ int main(int argc, char *argv[])
                     fprintf(stderr, USAGE, argv[0]);
                     exit(EXIT_FAILURE);
                 }
+                break;
+            case 'c':
+                check = true;
                 break;
             default: fprintf(stderr, USAGE, argv[0]);
                 exit(EXIT_FAILURE);
@@ -70,7 +74,7 @@ int main(int argc, char *argv[])
         message_size = strlen(argv[optind + 2]) + 1;
         message = (unsigned char*) argv[optind + 2];
         // Register with director
-        if(register_with_dir(conn, service_type) != 0) {
+        if(register_with_dir(conn, service_type, check) != 0) {
             fprintf(stderr, "Unable to register with director\n");
             exit(EXIT_FAILURE);
         }
@@ -93,10 +97,10 @@ int main(int argc, char *argv[])
         int size;
         char msg_type;
         // Do a read because it's our turn
-        char *buf = recv_msg(conn, &after_size, &msg_type);
+        recv_msg(conn, &after_size, &msg_type);
         
         send_ecent(conn, key, key_length);
-        
+
         // Generate random IV
         unsigned char iv[128];
         arc4random_buf(iv, 128);
@@ -108,7 +112,7 @@ int main(int argc, char *argv[])
             exit(EXIT_FAILURE);
         }
         // Append the IV to the encrypted data to send
-        buf = malloc(after_size + 128);
+        char *buf = malloc(after_size + 128);
         memcpy(buf, encrypted, after_size);
         memcpy(buf + after_size, iv, 128);
         send_msg(conn, buf, after_size + 128, SUCCESS_RECEIPT);

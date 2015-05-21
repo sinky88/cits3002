@@ -167,7 +167,7 @@ int register_client(CONN *conn, node_t *analyst_list, node_t *collector_list, in
         add_entry(analyst_list, analyst);
         send_msg(conn->ssl, NULL, 0, SUCCESS_RECEIPT);
     }
-    if(msg_type == NEW_COLLECTOR) {
+    if(msg_type == NEW_COLLECTOR || msg_type == COLLECTOR_CHECK) {
         printf("Received new collector entry information\n");
         INFO *analyst = check_match(analyst_list, *service_type);
         if(analyst == NULL) {
@@ -182,6 +182,15 @@ int register_client(CONN *conn, node_t *analyst_list, node_t *collector_list, in
             free(conn->ctx);
             free(conn);
             return -1;
+        }
+        if(msg_type == COLLECTOR_CHECK) {
+            // Send success receipt of connection
+            send_msg(conn->ssl, NULL, 0, SUCCESS_RECEIPT);
+            // Send receipt of analyst found
+            char receipt = ANALYST_FOUND;
+            send_msg(conn->ssl, &receipt, sizeof(char), SUCCESS_RECEIPT);
+            printf("Found analyst for service\n");
+            return 0;
         }
         // Remove analyst from list
         remove_entry(analyst_list, analyst->client_id);

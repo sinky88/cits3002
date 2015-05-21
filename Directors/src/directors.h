@@ -44,6 +44,9 @@
 #define CLOSED_CON       7
 #define ANALYST_FOUND    8
 #define SUCCESS_CLOSE    9
+#define CERT_ERROR      10
+#define COLLECTOR_CHECK 11
+
 
 
 

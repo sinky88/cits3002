@@ -71,6 +71,7 @@ int main(int argc, char *argv[])
         send_public_cert(conn);
         
         int key_length = 0;
+        unsigned char iv[128];
         char *buf = recv_msg(conn, &size, &msg_type);
         unsigned char *key = decrypt_key((unsigned char*)buf, size, &key_length);
         // Check if key was decrypted successfully
@@ -81,20 +82,26 @@ int main(int argc, char *argv[])
         free(buf);
         // Send confirmation of success
         send_msg(conn, NULL, 0, SUCCESS_RECEIPT);
+        // Recv the ecent payment
+        buf = recv_msg(conn, &size, &msg_type);
         
-        // Receive and decrypt ecent
+        // DECRYPT ECENT
         
-        int new_size;
-        unsigned char *decrypted = recv_encrypt_msg(conn, &new_size, &msg_type, key, key_length);
+        // Copy encrypted data and IV into seperate buffers
+        unsigned char msg[size];
+        memcpy(msg, buf, size);
+        memcpy(iv, buf + size - 128, 128);
+        free(buf);
         
-        if(error_handler(msg_type) < 0) {
+        int new_size = 0;
+        unsigned char *decrypted = decrypt_data(msg, size, &new_size, key, key_length, iv);
+        
+        // Check if decryption was succesful
+        if(decrypted == NULL) {
+            send_msg(conn, NULL, 0, ERROR_RECEIPT);
             continue;
         }
-        
-        FILE *fp = fopen("TEMP.file", "w");
-        fwrite(decrypted, new_size, 1, fp);
-        fclose(fp);
-        
+
         // Establish connection with the bank
         CONN *conn2 = establish_connection(bankaddr, bankport);
         
@@ -121,11 +128,31 @@ int main(int argc, char *argv[])
         // Send confirmation of success to collector
         send_msg(conn, NULL, 0, APPROVAL_OF_COIN);
         
-        decrypted = recv_encrypt_msg(conn, &new_size, &msg_type, key, key_length);
+        // Receive data for analyst
+        buf = recv_msg(conn, &size, &msg_type);
         
-        if(error_handler(msg_type) < 0) {
+        FILE *fp = fopen("TEMP.file", "w");
+        fwrite(buf, size, 1, fp);
+        fclose(fp);
+        
+        // Copy encrypted data and IV into seperate buffers
+        unsigned char msg2[size];
+        unsigned char iv2[128];
+        memcpy(msg2, buf, size);
+        memcpy(iv2, buf + size - 128, 128);
+        free(buf);
+        
+        decrypted = decrypt_data(msg, size, &new_size, key, key_length, iv2);
+        // Check if decryption was succesful
+        if(decrypted == NULL) {
+            send_msg(conn, NULL, 0, ERROR_RECEIPT);
+            // End connection with director
+            SSL_shutdown(conn->ssl);
+            SSL_free(conn->ssl);
+            free(conn);
             continue;
         }
+        printf("%s\n", decrypted);
         
         // Analyse the data
         int send_size = 0;
@@ -139,7 +166,6 @@ int main(int argc, char *argv[])
             continue;
         }
         free(decrypted);
-        
         if(send_encrypt_msg(conn, result, send_size, SUCCESS_RECEIPT, key, key_length) < 0) {
             SSL_shutdown(conn->ssl);
             SSL_free(conn->ssl);

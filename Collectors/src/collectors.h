@@ -18,7 +18,7 @@
 #include <openssl/rsa.h>
 #include <openssl/pem.h>
 
-#define OPT_STRING "t:"
+#define OPT_STRING "c t:"
 #define DEFAULT_SERVICE 'a'
 #define DEFAULT_SERVER 'd'
 #define DEFAULT_PORT "7777"
@@ -30,7 +30,7 @@
 #define ENC_RAND_KEY "temp/rand.key.enc"
 #define GEN_KEY "openssl rand -base64 32 > temp/rand.key"
 #define ENCRYPT_KEY "openssl rsautl -encrypt -certin -inkey temp/cert.pem -in temp/rand.key -out temp/rand.key.enc"
-#define USAGE "Usage: %s [-s server type -t service] address port message\n"
+#define USAGE "Usage: %s [-c -t service] address port message\n"
 #define ECENTS "temp/coins.file"
 #define ECENT_SIZE 256
 
@@ -52,6 +52,7 @@
 #define ANALYST_FOUND    8
 #define SUCCESS_CLOSE    9
 #define CERT_ERROR      10
+#define COLLECTOR_CHECK 11
 
 // Message type
 #define REQUEST_FOR_COIN    'a'
@@ -80,9 +81,11 @@ typedef struct {
 extern  int             init_conn(CONN *conn);
 extern  int             load_certs(CONN *conn);
 extern  CONN            *establish_connection(char *addr, char *port);
-extern  int             register_with_dir(CONN *conn, char service_type);
+extern  int             register_with_dir(CONN *conn, char service_type, bool check);
 extern  char            *recv_msg(CONN *conn, int *size, char *msg_type);
 extern  int             send_msg(CONN *conn, char *buf, int size, char type);
+extern  int             send_encrypt_msg(CONN *conn, char *buf, int size, char type, unsigned char *key, int key_length);
+extern  unsigned char   *recv_encrypt_msg(CONN *conn, int *new_size, char *type, unsigned char *key, int key_length);
 extern  int             recv_public_cert(CONN *conn);
 extern  int             error_handler(char msg_type);
 extern  int             buy_ecent(CONN *conn, int amount);

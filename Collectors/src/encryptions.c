@@ -25,7 +25,6 @@ unsigned char *encrypt_key(unsigned char *key, int keylength)
         return NULL;
     }
     int size = RSA_size(rsa2);
-    printf("RSA size is %i\n", size);
     unsigned char *encrypted = malloc(size);
     RSA_public_encrypt(keylength, key, encrypted, rsa2, RSA_PKCS1_PADDING);
     EVP_PKEY_free(pubkey);

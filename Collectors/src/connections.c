@@ -68,23 +68,34 @@ CONN *establish_connection(char *addr, char *port)
     return conn;
 }
 
-int register_with_dir(CONN *conn, char service_type)
+int register_with_dir(CONN *conn, char service_type, bool check)
 {
-    // Send handshake info
-    send_msg(conn, &service_type, sizeof(char), NEW_COLLECTOR);
-    int size = 0;
     char msg_type;
+
+    if(check) {
+        msg_type = COLLECTOR_CHECK;
+    } else {
+        msg_type = NEW_COLLECTOR;
+    }
+    // Send handshake info
+    send_msg(conn, &service_type, sizeof(char), msg_type);
+    int size = 0;
     
     // Receive confirmation
     recv_msg(conn, &size, &msg_type);
     
     // Receive confirmation of available analyst
-
+    
     char *receipt = recv_msg(conn, &size, &msg_type);
     if(*receipt == NO_ANALYST_FOUND) {
         fprintf(stderr, "No analysts found\n");
         free(receipt);
         exit(EXIT_FAILURE);
+    }
+    if(check) {
+        printf("Found analyst\n");
+        SSL_shutdown(conn->ssl);
+        exit(EXIT_SUCCESS);
     }
     free(receipt);
     return 0;
@@ -156,6 +167,42 @@ int send_msg(CONN *conn, char *buf, int size, char type)
     return 0;
 }
 
+int send_encrypt_msg(CONN *conn, char *buf, int size, char type, unsigned char *key, int key_length)
+{
+    unsigned char iv[128];
+    int new_size;
+    // Generate random IV
+    arc4random_buf(iv, 128);
+    // Encrypt the results
+    unsigned char *encrypted = encrypt_data((unsigned char *)buf, size, &new_size, key, key_length, iv);
+    // Check encryption was successful
+    if(encrypted == NULL) {
+        send_msg(conn, NULL, 0, ERROR_RECEIPT);
+        // End connection with director
+        return -1;
+    }
+    // Put results into buffer with IV
+    buf = malloc(new_size + 128);
+    memcpy(buf, encrypted, new_size);
+    memcpy(buf + new_size, iv, 128);
+    // Send the message to the collector
+    send_msg(conn, buf, new_size + 128, type);
+    return 0;
+}
+
+unsigned char *recv_encrypt_msg(CONN *conn, int *new_size, char *type, unsigned char *key, int key_length)
+{
+    int size;
+    char *buf = recv_msg(conn, &size, type);
+    unsigned char iv[128];
+    unsigned char msg[size - 128];
+    memcpy(msg, buf, size - 128);
+    memcpy(iv, buf + size - 128, 128);
+    free(buf);
+    unsigned char *decrypted = decrypt_data(msg, size - 128, new_size, key, key_length, iv);
+    return decrypted;
+}
+
 
 int recv_public_cert(CONN *conn)
 {
@@ -184,7 +231,7 @@ int error_handler(char msg_type)
             fprintf(stderr, "Analyst reports error receiving last message\n");
             return -1;
         case CLOSED_CON  :
-            fprintf(stderr, "Connection to lost\n");
+            fprintf(stderr, "Connection to Analyst lost\n");
             return -1;
         case CERT_ERROR :
             fprintf(stderr, "Analyst reports error with certificate\n");
@@ -234,18 +281,23 @@ int check_balance()
 
 int send_ecent(CONN *conn, unsigned char *key, int key_length)
 {
-    int size;
+    int file_size;
     int after_size;
+    int size;
     // Read ecent file
     FILE *fp = fopen(ECENTS, "r+");
     if(fp == NULL) {
         fprintf(stderr, "Error opening ecent file\n");
         exit(EXIT_FAILURE);
     }
+    fseek(fp, 0, SEEK_END);
+    file_size = ftell(fp);
     fseek(fp, -ECENT_SIZE, SEEK_END);
     char *buf = malloc(ECENT_SIZE);
     fread(buf, ECENT_SIZE, 1, fp);
-    fclose(fp);
+    FILE *temp = fopen("TEMP.file", "w");
+    fwrite(buf, ECENT_SIZE, 1, temp);
+    fclose(temp);
     char msg_type;
     // Generate random IV
     unsigned char iv[128];
@@ -266,11 +318,12 @@ int send_ecent(CONN *conn, unsigned char *key, int key_length)
     free(buf);
     free(encrypted);
     recv_msg(conn, &size, &msg_type);
-    printf("Received\n");
-    if(error_handler(msg_type) < 0) {
-        truncate(ECENTS, ECENT_SIZE);
+    if(error_handler(msg_type) >= 0) {
+        truncate(ECENTS, file_size - ECENT_SIZE);
+        
     } else {
         exit(EXIT_FAILURE);
     }
+    fclose(fp);
     return 0;
 }

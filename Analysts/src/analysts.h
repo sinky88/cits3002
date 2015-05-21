@@ -42,6 +42,8 @@
 #define ANALYST_FOUND    8
 #define SUCCESS_CLOSE    9
 #define CERT_ERROR      10
+#define COLLECTOR_CHECK 11
+
 
 
 // More message types
@@ -76,6 +78,8 @@ extern  CONN            *establish_connection(char *addr, char *port);
 extern  int             register_with_dir(CONN *conn, char service_type);
 extern  char            *recv_msg(CONN *conn, int *size, char *type);
 extern  int             send_msg(CONN *conn, char *buf, int size, char type);
+extern  int             send_encrypt_msg(CONN *conn, char *buf, int size, char type, unsigned char *key, int key_length);
+extern  unsigned char   *recv_encrypt_msg(CONN *conn, int *new_size, char *type, unsigned char *key, int key_length);
 extern  int             send_public_cert(CONN *conn);
 extern  int             error_handler(char msg_type);
 extern  int             deposit_ecent(CONN *conn, char *buf, int size);
