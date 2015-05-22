@@ -46,6 +46,7 @@
 #define SUCCESS_CLOSE    9
 #define CERT_ERROR      10
 #define COLLECTOR_CHECK 11
+#define KEEP_ALIVE      12
 
 
 

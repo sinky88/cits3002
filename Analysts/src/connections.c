@@ -204,6 +204,7 @@ int send_public_cert(CONN *conn)
     fread(buf, size, 1, fp);
     fclose(fp);
     send_msg(conn, buf, size, SUCCESS_RECEIPT);
+    free(buf);
     return 0;
 }
 

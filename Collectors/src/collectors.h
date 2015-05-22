@@ -24,6 +24,7 @@
 #define DEFAULT_BANK_ADDR "127.0.0.1"
 #define DEFAULT_BANK_PORT "6552"
 #define BACKLOG 5
+#define BANK_CERT "certs/bankcert.pem"
 #define COL_CERT "certs/cert.pem"
 #define COL_KEY "private/key.pem"
 #define ANA_CERT "temp/cert.pem"
@@ -62,6 +63,11 @@
 #define APPROVAL_OF_COIN    'd'
 #define DENIAL_OF_COIN      'e'
 #define NO_FUNDS_ERROR      'f'
+#define REQUEST_AUTH        'g'
+#define CHECK_AUTH          'h'
+#define AUTH_FAILED         'i'
+#define CERT_FOUND          'j'
+#define AUTH_SUCCESS        'k'
 
 // Structures as part of protocol
 
@@ -87,7 +93,7 @@ extern  char            *recv_msg(CONN *conn, int *size, char *msg_type);
 extern  int             send_msg(CONN *conn, char *buf, int size, char type);
 extern  int             send_encrypt_msg(CONN *conn, char *buf, int size, char type, unsigned char *key, int key_length);
 extern  unsigned char   *recv_encrypt_msg(CONN *conn, int *new_size, char *type, unsigned char *key, int key_length);
-extern  int             recv_public_cert(CONN *conn);
+extern  int             recv_public_cert(CONN *conn, char *bankaddr, char *bankport);
 extern  int             error_handler(char msg_type);
 extern  int             buy_ecent(CONN *conn, int amount);
 extern  int             check_balance();

@@ -15,7 +15,6 @@ unsigned char *encrypt_string(unsigned char *str, int length, int *after_length)
         return NULL;
     }
     int size = RSA_size(rsa2);
-    printf("RSA size is %i\n", size);
     
     unsigned char *encrypted = malloc(size);
     *after_length = RSA_public_encrypt(length, str, encrypted, rsa2, RSA_PKCS1_PADDING);

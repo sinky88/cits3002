@@ -45,6 +45,8 @@
 #define SUCCESS_CLOSE    9
 #define CERT_ERROR      10
 #define COLLECTOR_CHECK 11
+#define KEEP_ALIVE      12
+
 
 
 
@@ -56,6 +58,11 @@
 #define APPROVAL_OF_COIN    'd'
 #define DENIAL_OF_COIN      'e'
 #define NO_FUNDS_ERROR      'f'
+#define REQUEST_AUTH        'g'
+#define CHECK_AUTH          'h'
+#define AUTH_FAILED         'i'
+#define CERT_FOUND          'j'
+#define AUTH_SUCCESS        'k'
 
 // Structures as part of protocol
 

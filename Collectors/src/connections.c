@@ -204,12 +204,32 @@ unsigned char *recv_encrypt_msg(CONN *conn, int *new_size, char *type, unsigned 
 }
 
 
-int recv_public_cert(CONN *conn)
+int recv_public_cert(CONN *conn, char *bankaddr, char *bankport)
 {
     int size = 0;
     char msg_type;
     // Receive cert
     char *buf = recv_msg(conn, &size, &msg_type);
+    // Open connection to bank
+    
+    CONN *bankconn = establish_connection(bankaddr, bankport);
+    
+    send_msg(bankconn, NULL, 0, CHECK_AUTH);
+    
+    send_msg(bankconn, buf, size, SUCCESS_RECEIPT);
+    
+    int msg_size;
+    
+    recv_msg(bankconn, &msg_size, &msg_type);
+    
+    if(msg_type == AUTH_SUCCESS) {
+        printf("Successfully authenticated with bank\n");
+    } else {
+        fprintf(stderr, "Unable to authenticate with the bank\n");
+        send_msg(conn, NULL, 0, CERT_ERROR);
+        exit(EXIT_FAILURE);
+    }
+    
     // Open cert file for writing
     FILE *fp = fopen(ANA_CERT, "w");
     if(fp == NULL) {

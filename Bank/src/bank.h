@@ -43,6 +43,11 @@
 #define APPROVAL_OF_COIN    'd'
 #define DENIAL_OF_COIN      'e'
 #define NO_FUNDS_ERROR      'f'
+#define REQUEST_AUTH        'g'
+#define CHECK_AUTH          'h'
+#define AUTH_FAILED         'i'
+#define CERT_FOUND          'j'
+#define AUTH_SUCCESS        'k'
 
 
 /* STRUCTURES */
@@ -80,6 +85,7 @@ extern  X509            *createX509(char *filename);
 /* VARIABLES */
 extern COIN b_coins[COINS_AVAIL];
 extern int  coin_count;
+extern int  auth_count;
 
 extern FILE* FILE_OUTPUT;
 

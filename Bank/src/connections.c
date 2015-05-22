@@ -311,6 +311,71 @@ int serve_client(int listening_socket, SSL_CONN *conn)
                 break;
             }
                 
+            case REQUEST_AUTH:
+            {
+                char *numstr = malloc(12);
+                sprintf(numstr, "%d", auth_count ++);
+                char *dirstr = malloc(strlen(numstr) + strlen(TEMP_DIR) + 1);
+                // This is where we would check the trust list
+                // outside of scope of project, asssume trust.
+                
+                strcat(dirstr, TEMP_DIR);
+                strcat(dirstr, numstr);
+                FILE *fp = fopen(dirstr, "w+");
+                fwrite(rcvd_message, i_size, 1, fp);
+                fclose(fp);
+                free(dirstr);
+                free(numstr);
+                break;
+            }
+                
+            case CHECK_AUTH:
+            {
+                char *cert1 = recv_msg(conn->ssl, &i_size, &i_type);
+                printf("Received certificate for authentication\n");
+                for(int i = 0; i < auth_count; i ++) {
+                    char *numstr = malloc(12);
+                    sprintf(numstr, "%d", i);
+                    char *dirstr = malloc(strlen(numstr) + strlen(TEMP_DIR) + 1);
+                    strcat(dirstr, TEMP_DIR);
+                    strcat(dirstr, numstr);
+                    printf("Looking for certificate %s\n", dirstr);
+                    FILE *fp = fopen(dirstr, "r");
+                    if(fp == NULL) {
+                        fprintf(stderr, "Could not find certificate\n");
+                        continue;
+                    }
+                    char *cert2 = malloc(i_size);
+                    int bytes_read = fread(cert2, 1, i_size, fp);
+                    fclose(fp);
+                    if(bytes_read != i_size) {
+                        free(cert2);
+                        printf("Bytes read %i bytes recv %i\n", bytes_read, i_size);
+                        printf("Cert does not match size\n");
+                        continue;
+                    }
+                    int size = 0;
+                    while(size < i_size) {
+                        if((*cert1)++ != (*cert2)++) {
+                            continue;
+                        }
+                        size ++;
+                    }
+                    free(cert2);
+                    if(size != i_size) {
+                        printf("Cert does not match\n");
+                        send_msg(conn->ssl , NULL, 0, AUTH_FAILED);
+                        continue;
+                    }
+                    printf("Found match\n");
+                    send_msg(conn->ssl, NULL, 0, AUTH_SUCCESS);
+                    break;
+                }
+                // If we got here auth failed
+                send_msg(conn->ssl , NULL, 0, AUTH_FAILED);
+                break;
+            }
+                
             default:
                 printf("Invalid message type received: %c", i_type);
                 return 0;

@@ -45,6 +45,21 @@ int main(int argc, char *argv[])
     diraddr = argv[optind];
     dirport = argv[optind + 1];
     
+    // Establish connection with bank and register for authentication
+    
+    CONN *bank_conn = establish_connection(bankaddr, bankport);
+    
+    FILE *fp = fopen(ANA_CERT, "r");
+    if(fp == NULL) {
+        fprintf(stderr, "Error registering with bank\n");
+    }
+    fseek(fp, 0, SEEK_END);
+    int size = ftell(fp);
+    char *buffer = malloc(size);
+    rewind(fp);
+    fread(buffer, size, 1, fp);
+    send_msg(bank_conn, buffer, size, REQUEST_AUTH);
+    
     // Main loop
     while(true) {
         // Establish connection with a director
@@ -60,6 +75,7 @@ int main(int argc, char *argv[])
 
         // Wait for confirmation of collector
         char *receipt = recv_msg(conn, &size, &msg_type);
+        
         if(receipt == NULL) {
             error_handler(msg_type);
             continue;
@@ -76,6 +92,9 @@ int main(int argc, char *argv[])
         
         int key_length = 0;
         char *buf = recv_msg(conn, &size, &msg_type);
+        if(error_handler(msg_type) < 0) {
+            continue;
+        }
         unsigned char *key = decrypt_key((unsigned char*)buf, size, &key_length);
         // Check if key was decrypted successfully
         if(key == NULL) {
@@ -200,38 +219,6 @@ char *find_mean(char *str, int *send_size)
     }
     double mean = ((double) total)/n;
     *send_size = sprintf(result, "%f", mean) + 1;
-    return result;
-}
-
-char *find_maxsize(char *str)
-{
-    
-    char *result = NULL;
-    int place=0,length=0, maxlength=0;
-    
-    for(int i=0;i<strlen(str);i++)
-    {
-        if(str[i]==' ')
-        {
-            if (length>maxlength)
-            {
-                maxlength = length;
-                place = i - length;
-            }
-            length = 0;
-        }
-        else
-            length++;
-    } 
-    
-    if (length>maxlength)
-    {
-        maxlength = length;
-        place = strlen(str) - length;
-    }
-    for(int ii = 0; ii<maxlength; ii++) {
-        *result = str[place+ii];
-    }
     return result;
 }
 

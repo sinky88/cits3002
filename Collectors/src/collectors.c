@@ -78,7 +78,7 @@ int main(int argc, char *argv[])
             fprintf(stderr, "Unable to register with director\n");
             exit(EXIT_FAILURE);
         }
-        recv_public_cert(conn);
+        recv_public_cert(conn, bankaddr, bankport);
         
         int key_length;
         // Generate key for communication
@@ -105,7 +105,6 @@ int main(int argc, char *argv[])
         }
         
         // Receive analysed data
-        
         unsigned char *decrypted = recv_encrypt_msg(conn, &after_size, &msg_type, key, key_length);
         // Check if decryption was succesful
         if(decrypted == NULL) {

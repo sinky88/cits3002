@@ -93,6 +93,7 @@ int *wait_for_connection(char *port)
     
     int client_id = 0;
     
+    
     // Main loop
     while(true) {
         
