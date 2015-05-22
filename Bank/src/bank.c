@@ -1,22 +1,28 @@
 #include "bank.h"
 
+FILE* output_stream;
+FILE* coinlist;
 COIN b_coins[COINS_AVAIL];
 int coin_count = 0;
 int auth_count = 0;
 
 
+
 int main(int argc, char *argv[])
 {
     
-    /* MANAGE ARGUMENTS && DETERMINE PORT TO BE USED */
+    //initialise bank here
+    output_stream = DEFAULT_OUT_STREAM;
     
+    coinlist = fopen(COINS_LIST, "w+");
+    
+    fclose(coinlist);
     // initialise port to default specified in bank.h
     char *port = DEFAULT_PORT;
     
     
-    //maybe have an argument for timeout aswell?
+    /* ARGUMENTS */
     
-    // if argument specified for port number, amend port to specified
     int opt = 0;
     char *optString = OPT_STRING;
     while((opt = getopt(argc, argv, optString)) != -1)
@@ -24,44 +30,43 @@ int main(int argc, char *argv[])
         switch(opt)
         {
             case 'p':
+            {
                 if(optarg != NULL) {
                     port = optarg;
                 } else {
-                    fprintf(stderr, "Usage: %s [-p port]\n", argv[0]);
+                    fprintf(output_stream, "Usage: %s [-p port]\n", argv[0]);
                     exit(EXIT_FAILURE);
                 }
                 break;
+            }
+            
         }
     }
     
-    
     //print port number being used
-    fprintf(stderr, "port number: %s\n", port);
+    fprintf(output_stream, "using port %s...\n", port);
     
-    //initialise bank here
-    
-    
-    /* LET'S GET A SOCKET FOR COMMUNICATION */
-
-    int listening_socket;
+    /* GET A SOCKET TO LISTEN FOR INCOMING CONNECTIONS w/ PORT */
+    int listening_socket; // listens for any incoming communication for port
     if( (listening_socket = init_comm_on_port(port) ) < 0 ) {
-        return 0; //e.g. check for errors
+        fprintf(output_stream, "unable to get listening port\nTERMINATE");
+        exit(EXIT_FAILURE);
+        return -1;
     }
     
-    
-    /* LET'S SET UP A SSL CONNECTION USING THIS SOCKET */
-    
-    // initialise OpenSSL
-    SSL_library_init();
-    SSL_load_error_strings();
-    ERR_load_BIO_strings();
-    
-    SSL_CONN *conn = establish_ssl_conn();
-    
-    //use this connection to serve clients
-    if( serve_client(listening_socket, conn)  == -1) {
-        fprintf(stderr, "serveclient in main");
+    /* INITIALISE SSL AND HOLD USEFUL VARIABLES IN SSL_INFO STRUCTURE */
+    SSL_INFO *conn = establish_ssl_conn();
+    if (conn == NULL) {
+        fprintf(output_stream, "unable to load SSL\nTERMINATE");
         exit(EXIT_FAILURE);
+        return -1;
+    }
+    
+    /* SERVE CLIENTS AS THEY CONNECT USING TCP/SSL */
+    if( serve_client(listening_socket, conn)  == -1) {
+        fprintf(output_stream, "serveclient in main");
+        exit(EXIT_FAILURE);
+        return -1;
     }
     
     /* CLOSE DOWN RESOURCES */

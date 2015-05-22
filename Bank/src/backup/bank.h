@@ -31,9 +31,8 @@
 #define TEMP_DIR "temp/"
 
 // Bank Configuration
-#define DEFAULT_OUT_STREAM     stdout
-#define COINS_AVAIL     1000000
-#define COINS_LIST "coinslist.COINS"
+#define COINS_AVAIL     10000
+
 
 /* COMMUNICATION */
 
@@ -44,6 +43,12 @@
 #define APPROVAL_OF_COIN    'd'
 #define DENIAL_OF_COIN      'e'
 #define NO_FUNDS_ERROR      'f'
+#define REQUEST_AUTH        'g'
+#define CHECK_AUTH          'h'
+#define AUTH_FAILED         'i'
+#define CERT_FOUND          'j'
+#define AUTH_SUCCESS        'k'
+
 
 /* STRUCTURES */
 
@@ -56,15 +61,15 @@ typedef struct {
     BIO                     *bio;
     SSL                     *ssl;
     SSL_CTX                 *ctx;
-} SSL_INFO;
+} SSL_CONN;
 
 
 /* FUNCTIONS */
 
 // Defined in connections.c
 extern  int             init_comm_on_port(char *port);
-extern  int             serve_client(int listening_socket, SSL_INFO *conn);
-extern  SSL_INFO        *establish_ssl_conn();
+extern  int             serve_client(int listening_socket, SSL_CONN *conn);
+extern  SSL_CONN        *establish_ssl_conn();
 extern  char            *recv_msg(void *ssl, int *size, char *type);
 extern  int             send_msg(void *ssl, char *buf, int size, char type);
 
@@ -80,6 +85,7 @@ extern  X509            *createX509(char *filename);
 /* VARIABLES */
 extern COIN b_coins[COINS_AVAIL];
 extern int  coin_count;
+extern int  auth_count;
 
-extern FILE* output_stream;
+extern FILE* FILE_OUTPUT;
 

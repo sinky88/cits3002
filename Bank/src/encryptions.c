@@ -3,9 +3,6 @@
 //retruns null if error
 unsigned char *encrypt_string(unsigned char *str, int length, int *after_length)
 {
-    //unsigned char *temp = malloc(20);
-    //temp = (unsigned char*) str;
-    
     X509 *cert = createX509(BANK_CERT);
     EVP_PKEY *pubkey = X509_get_pubkey(cert);
     RSA *rsa2 = EVP_PKEY_get1_RSA(pubkey);
@@ -15,12 +12,12 @@ unsigned char *encrypt_string(unsigned char *str, int length, int *after_length)
         return NULL;
     }
     int size = RSA_size(rsa2);
+    //printf("RSA size is %i\n", size);
     
     unsigned char *encrypted = malloc(size);
     *after_length = RSA_public_encrypt(length, str, encrypted, rsa2, RSA_PKCS1_PADDING);
     EVP_PKEY_free(pubkey);
-    //free(temp);
-    
+
     return encrypted;
 }
 
